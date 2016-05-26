@@ -1,9 +1,10 @@
 ﻿using UnityEngine;
-using System.Collections;
+using System.Collections.Generic;
 using UnityEditor;
 
 public class UVUnwrap : EditorWindow
 {
+
     MeshFilter target;
     Texture2D dummyTexture, blackTexture;
     UVUnwrapSettings.Side draggedSide;
@@ -72,20 +73,20 @@ public class UVUnwrap : EditorWindow
         var width = EditorGUILayout.GetControlRect().width;
         var height = EditorGUILayout.GetControlRect().height;
         settings.textureRect = settings.targetTexture == null ?
-            new Rect(5, 35, settings.textureSize * settings.gridSize, settings.textureSize * settings.gridSize) :
+            new Rect(5, 35, settings.textureSize * settings.gridSize * settings.zoom, settings.textureSize * settings.gridSize * settings.zoom) :
             new Rect(5, 35, settings.targetTexture.width * settings.zoom * 2, settings.targetTexture.height * settings.zoom * 2);
-        var aspect = settings.textureRect.width / settings.textureRect.height;
-        settings.textureRect.width = Mathf.Clamp(settings.textureRect.width, 10, width - dockWidth - settings.textureRect.x);
-        settings.textureRect.height = settings.textureRect.width / aspect;
-        EditorGUILayout.BeginVertical();
+        //var aspect = settings.textureRect.width / settings.textureRect.height;
+        //settings.textureRect.width = Mathf.Clamp(settings.textureRect.width, 10, width - dockWidth - settings.textureRect.x);
+        //settings.textureRect.height = settings.textureRect.width / aspect;
+
        target = EditorGUI.ObjectField(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), target, typeof(MeshFilter), true) as MeshFilter;
         var _sidesScale = settings.sidesScale;
-        settings.sidesScale = EditorGUI.Slider(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), "Sides Scale", settings.sidesScale, 0f, 1f);
+        settings.sidesScale = EditorGUI.Slider(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), "Sides Scale", settings.sidesScale, .1f, .5f);
         if (settings.sidesScale != _sidesScale)
             settings.ScaleSides();
 
         var _pixelCount = settings.textureSize;
-        settings.textureSize = EditorGUI.IntSlider(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), "Pixel Count", settings.textureSize, 8, 128);
+        settings.textureSize = EditorGUI.IntSlider(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), "Texture Size", settings.textureSize, 8, 128);
         if (settings.textureSize != _pixelCount)
             settings.RecalculateGrid();
 
@@ -101,11 +102,51 @@ public class UVUnwrap : EditorWindow
         settings.targetTexture = EditorGUI.ObjectField(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), "Target Texture", settings.targetTexture, typeof(Texture2D),  true) as Texture2D;
 
         var _zoom = settings.zoom;
-        settings.zoom = EditorGUI.Slider(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), "Zoom", settings.zoom, 0.1f, 1f);
+        settings.zoom = EditorGUI.Slider(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), "Zoom", settings.zoom, 0.1f, 5f);
         if(settings.zoom != _zoom)
+        {
             settings.ScaleSides();
+          
+        }
+           
 
         var gc = GUI.color;
+     
+
+        if (GUI.Button(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), "Recalculate Grid"))
+        {
+            settings.RecalculateGrid();
+        }
+
+        if (target != null)
+        {
+            if (GUI.Button(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), "Generate Sides"))
+            {
+                settings.GenerateSides(target.transform.localScale);
+
+                settings.ScaleSides();
+            }
+            if (GUI.Button(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), "Generate Texture"))
+            {
+                var path = EditorUtility.SaveFilePanelInProject("Save texture", target.name + "_texture", "png", settings.texturePath, settings.texturePath);
+                if (!string.IsNullOrEmpty(path))
+                {
+                    settings.texturePath = path;
+                    var t = settings.GenerateTexture();
+                    System.IO.File.WriteAllBytes(path, t.EncodeToPNG());
+                    AssetDatabase.ImportAsset(path);
+                }
+            }
+            if (GUI.Button(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), "Generate Mesh"))
+            {
+                var path = EditorUtility.SaveFilePanelInProject("Save mesh", target.name + "_mesh", "asset", settings.meshPath, settings.meshPath);
+                if (!string.IsNullOrEmpty(path))
+                {
+                    settings.meshPath = path;
+                    GenerateMesh(target, path);
+                }
+            }
+        }
         y += elementYOffset;
         for (int i = 0; i < settings.sides.Count; i++)
         {
@@ -139,30 +180,8 @@ public class UVUnwrap : EditorWindow
         var e = Event.current;
 
 
-        if (GUI.Button(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), "Recalculate Grid"))
-        {
-            settings.RecalculateGrid();
-        }
 
-        if (target != null)
-        {
-            if (GUI.Button(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), "Generate Sides"))
-            {
-                settings.GenerateSides(target.transform.localScale);
 
-                settings.ScaleSides();
-            }
-            if (GUI.Button(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), "Generate Mesh"))
-            {
-                var path = EditorUtility.SaveFilePanelInProject("Save mesh", target.name + "_mesh", "asset", settings.meshFolderPath, settings.meshFolderPath);
-                if(!string.IsNullOrEmpty(path))
-                {
-                    settings.meshFolderPath = path;
-                    GenerateMesh(target, path);
-                }
-            }
-        }
-        EditorGUILayout.EndHorizontal();
         if (settings.targetTexture != null)
         {
             GUI.DrawTexture(settings.textureRect, settings.targetTexture);
@@ -202,7 +221,9 @@ public class UVUnwrap : EditorWindow
                 pos.y = Mathf.Clamp(pos.y, container.y, container.y + container.height - r.height);
                 r.position = settings.snapToGrid ? settings.GetGridPoint(pos) : pos;
                 draggedSide.rect = r;
+  
                 draggedSide.MapPositionFromRect(container);
+
                 //DrawSidePreview();
             }
         }
@@ -212,7 +233,7 @@ public class UVUnwrap : EditorWindow
             DrawRectagle(draggedSide.rect, 2);
             GUI.color = gc;
         }
-        if(settings.snapToGrid)
+        if(settings.targetTexture == null)
         {
             for (int i = 0; i < settings.grid.Width; i++)
             {
@@ -225,6 +246,7 @@ public class UVUnwrap : EditorWindow
 
             GUI.DrawTexture(new Rect(container.x, container.y + container.height, container.width, 1), blackTexture, ScaleMode.StretchToFill);
             GUI.DrawTexture(new Rect(container.x + container.width, container.y, 1, container.height), blackTexture, ScaleMode.StretchToFill);
+
         }
         else
         {
@@ -243,16 +265,32 @@ public class UVUnwrap : EditorWindow
                 GUI.DrawTexture(new Rect( side.rect.center.x - lockWidth / 2, side.rect.center.y - lockWidth / 2, lockWidth, lockWidth), lockIcon);
             }
         }
-
+        EditorUtility.SetDirty(settings);   
         Repaint();
     }
 
     void GenerateMesh(MeshFilter target, string path)
     {
-        Debug.Log(string.Format("{0}", path)); 
         var mesh = Instantiate(target.sharedMesh);
         mesh.uv = UVUnwrapSettings.Instance.GenerateUV();
+        var existingMesh = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+        List<MeshFilter> filtersToReplace = new List<MeshFilter>();
+        if (existingMesh != null)
+        {
+            var filters = FindObjectsOfType<MeshFilter>();
+            foreach (var mf in filters)
+            {
+                if(mf.sharedMesh == existingMesh)
+                {
+                    filtersToReplace.Add(mf);
+                }
+            }
+        }
         AssetDatabase.CreateAsset(mesh, path);
+        foreach (var mf in filtersToReplace)
+        {
+            mf.sharedMesh = mesh;
+        }
     }
 
     void DrawSidePreview()
@@ -275,23 +313,26 @@ public class UVUnwrap : EditorWindow
 
     void SwitchSide(UVUnwrapSettings.Side side)
     {
-        if(draggedSide != side && UVUnwrapSettings.Instance.targetTexture != null)
+        if(draggedSide != side)
         {
             var settings = UVUnwrapSettings.Instance;
             draggedSide = side;
             DestroyImmediate(_tmpTexture);
-            _tmpTexture = new Texture2D((int)(settings.targetTexture.width * draggedSide.scaledSize.x), (int) (settings.targetTexture.height * draggedSide.scaledSize.y), TextureFormat.ARGB32, false);
-            DrawSidePreview();
+            if(settings.targetTexture != null)
+            {
+                _tmpTexture = new Texture2D((int) (settings.targetTexture.width * draggedSide.scaledSize.x), (int) (settings.targetTexture.height * draggedSide.scaledSize.y), TextureFormat.ARGB32, false);
+                DrawSidePreview();
+            }
         }
       
     }
 
     public void DrawRectagle(Rect rect, float width = 1f)
     {
-        GUI.DrawTexture(new Rect(rect.x - width, rect.y + rect.height, rect.width + width * 2, width), blackTexture, ScaleMode.StretchToFill);
-        GUI.DrawTexture(new Rect(rect.x + rect.width, rect.y, width, rect.height), blackTexture, ScaleMode.StretchToFill);
-        GUI.DrawTexture(new Rect(rect.x - width, rect.y - width, rect.width + width * 2, width), blackTexture, ScaleMode.StretchToFill);
-        GUI.DrawTexture(new Rect(rect.x - width, rect.y, width, rect.height), blackTexture, ScaleMode.StretchToFill);
+        GUI.DrawTexture(new Rect(rect.x, rect.y + rect.height - width, rect.width - width, width), blackTexture, ScaleMode.StretchToFill);
+        GUI.DrawTexture(new Rect(rect.x, rect.y + width, width, rect.height - width), blackTexture, ScaleMode.StretchToFill);
+        GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width - width, width), blackTexture, ScaleMode.StretchToFill);
+        GUI.DrawTexture(new Rect(rect.x, rect.y, width, rect.height - width), blackTexture, ScaleMode.StretchToFill);
     }
 
     class SidePanel
