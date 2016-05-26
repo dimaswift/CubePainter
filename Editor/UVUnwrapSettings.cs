@@ -20,8 +20,9 @@ public class UVUnwrapSettings : EditorSettings<UVUnwrapSettings>
     public bool scaleSidesWithGrid;
     public Grid grid { get { if (_grid == null) _grid = CreateInstance<Grid>(); return _grid; } }
     public Rect textureRect;
-
-
+    public string meshFolderPath;
+    [SerializeField]
+    Vector2[] _uv = new Vector2[24];
     public Point TextureSize
     {
         get { return powerOfTwo ? new Point(textureSize, textureSize) : new Point(textureWidth, textureHeight); }
@@ -61,17 +62,38 @@ public class UVUnwrapSettings : EditorSettings<UVUnwrapSettings>
 
     public Vector2[] GenerateUV()
     {
-        var uv = new Vector2[24];
-        int unIndex = 0;
-        foreach (var side in sides)
-        {
-            uv[unIndex] = new Vector2(side.uvOrigin.x, side.uvOrigin.y);
-            uv[unIndex + 1] = new Vector2(side.uvOrigin.x + side.scaledSize.x, side.uvOrigin.y);
-            uv[unIndex + 2] = new Vector2(side.uvOrigin.x, side.uvOrigin.y + side.scaledSize.y);
-            uv[unIndex + 3] = new Vector2(side.uvOrigin.x + side.scaledSize.x, side.uvOrigin.y + side.scaledSize.y);
-            unIndex += 4;
-        }
-        return uv;
+        // side 1
+        _uv[0] = sides[0].uvs[0];
+        _uv[1] = sides[0].uvs[2];
+        _uv[2] = sides[0].uvs[3];
+        _uv[3] = sides[0].uvs[1];
+        // side 2
+        _uv[12] = sides[1].uvs[0];
+        _uv[15] = sides[1].uvs[1];
+        _uv[13] = sides[1].uvs[2];
+        _uv[14] = sides[1].uvs[3];
+        // side 3
+        _uv[4] = sides[2].uvs[0];
+        _uv[7] = sides[2].uvs[1];
+        _uv[5] = sides[2].uvs[2];
+        _uv[6] = sides[2].uvs[3];
+        // side 4
+        _uv[8] = sides[3].uvs[0];
+        _uv[11] = sides[3].uvs[1];
+        _uv[9] = sides[3].uvs[2];
+        _uv[10] = sides[3].uvs[3];
+        // side 5
+        _uv[20] = sides[4].uvs[0];
+        _uv[23] = sides[4].uvs[1];
+        _uv[21] = sides[4].uvs[2];
+        _uv[22] = sides[4].uvs[3];
+        // side 6
+        _uv[16] = sides[5].uvs[0];
+        _uv[19] = sides[5].uvs[1];
+        _uv[17] = sides[5].uvs[2];
+        _uv[18] = sides[5].uvs[3];
+
+        return _uv;
     }
 
     public void ScaleSides()
@@ -92,7 +114,7 @@ public class UVUnwrapSettings : EditorSettings<UVUnwrapSettings>
     public List<Side> GenerateSides(Vector3 size)
     {
         boxSize = size;
-        sides = GetSides(size, 1);
+        sides = GetSides(size, 1, sidesScale);
         return sides;
     }
     [System.Serializable]
@@ -113,9 +135,9 @@ public class UVUnwrapSettings : EditorSettings<UVUnwrapSettings>
             get
             {
                 _uvs[0] = new Vector2(uvOrigin.x, uvOrigin.y - scaledSize.y);
-                _uvs[1] = new Vector2(uvOrigin.x, uvOrigin.y);
-                _uvs[2] = new Vector2(uvOrigin.x + scaledSize.x, uvOrigin.y);
-                _uvs[3] = new Vector2(uvOrigin.x + scaledSize.x, uvOrigin.y - scaledSize.y);
+                _uvs[1] = new Vector2(uvOrigin.x + scaledSize.x, uvOrigin.y - scaledSize.y);
+                _uvs[2] = new Vector2(uvOrigin.x, uvOrigin.y);
+                _uvs[3] = new Vector2(uvOrigin.x + scaledSize.x, uvOrigin.y);
                 return _uvs;
             }
         }
@@ -177,7 +199,7 @@ public class UVUnwrapSettings : EditorSettings<UVUnwrapSettings>
         sides.Add(new Side(scale.x, scale.y, Color.HSVToRGB(.6f, .7f, .7f)) * size);
 
 
-        sides[0].uvOrigin = Vector2.zero;
+ 
 
         sides.Sort((s1, s2) => s1.size.magnitude.CompareTo(s2.size.magnitude));
         var largest = sides.LastItem().size;
@@ -186,6 +208,7 @@ public class UVUnwrapSettings : EditorSettings<UVUnwrapSettings>
         foreach (var side  in sides)
         {
             side.size = new Vector3(InterfaceUtilily.Remap(side.size.x, 0, maxSize, 0, 1), InterfaceUtilily.Remap(side.size.y, 0, maxSize, 0, 1));
+            side.uvOrigin = new Vector3(0, side.size.y);
         }
 
         return sides;

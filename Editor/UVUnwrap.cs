@@ -77,7 +77,7 @@ public class UVUnwrap : EditorWindow
         var aspect = settings.textureRect.width / settings.textureRect.height;
         settings.textureRect.width = Mathf.Clamp(settings.textureRect.width, 10, width - dockWidth - settings.textureRect.x);
         settings.textureRect.height = settings.textureRect.width / aspect;
-
+        EditorGUILayout.BeginVertical();
        target = EditorGUI.ObjectField(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), target, typeof(MeshFilter), true) as MeshFilter;
         var _sidesScale = settings.sidesScale;
         settings.sidesScale = EditorGUI.Slider(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), "Sides Scale", settings.sidesScale, 0f, 1f);
@@ -120,29 +120,25 @@ public class UVUnwrap : EditorWindow
             EditorGUI.LabelField(new Rect(width - dockWidth + 75, y, 150, 16), string.Format("x:{0:0.000}, y:{1:0.000}", side.uvOrigin.x, side.uvOrigin.y));
             var _si = side.showInfo;
             side.showInfo = EditorGUI.Foldout(new Rect(width - dockWidth + 220, y, 150, 16), side.showInfo, "Show Info", true);
-            if(side.showInfo && side.showInfo != _si)
-                draggedSide = side;
+            if (side.showInfo && side.showInfo != _si)
+                SwitchSide(side);
             if (side.showInfo)
             {
                 EditorGUI.LabelField(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), "UVS:", EditorStyles.centeredGreyMiniLabel);
-                y += elementYOffset;
                 for (int j = 0; j < 4; j++)
                 {
                     EditorGUI.Vector2Field(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16),"", side.uvs[j]);
                 }
                 EditorGUI.LabelField(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), "Rect:", EditorStyles.centeredGreyMiniLabel);
                 EditorGUI.RectField(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), side.rect);
+                y += elementYOffset;
             }
             y += elementYOffset;
         }
         GUI.color = gc;
         var e = Event.current;
 
-        if(settings.targetTexture != null)
-        {
-            GUI.DrawTexture(settings.textureRect, settings.targetTexture);
-        }
-    
+
         if (GUI.Button(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), "Recalculate Grid"))
         {
             settings.RecalculateGrid();
@@ -153,14 +149,29 @@ public class UVUnwrap : EditorWindow
             if (GUI.Button(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), "Generate Sides"))
             {
                 settings.GenerateSides(target.transform.localScale);
+
                 settings.ScaleSides();
             }
+            if (GUI.Button(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), "Generate Mesh"))
+            {
+                var path = EditorUtility.SaveFilePanelInProject("Save mesh", target.name + "_mesh", "asset", settings.meshFolderPath, settings.meshFolderPath);
+                if(!string.IsNullOrEmpty(path))
+                {
+                    settings.meshFolderPath = path;
+                    GenerateMesh(target, path);
+                }
+            }
+        }
+        EditorGUILayout.EndHorizontal();
+        if (settings.targetTexture != null)
+        {
+            GUI.DrawTexture(settings.textureRect, settings.targetTexture);
         }
 
-        if(draggedSide != null)
+        if (draggedSide != null)
         {
             y += elementYOffset;
-            GUI.DrawTexture(new Rect(width - dockWidth, y, _tmpTexture.width, _tmpTexture.height), _tmpTexture);
+          //  GUI.DrawTexture(new Rect(width - _tmpTexture.width, y, _tmpTexture.width, _tmpTexture.height), _tmpTexture, ScaleMode.ScaleToFit);
         }
 
         var container = settings.textureRect;
@@ -192,7 +203,7 @@ public class UVUnwrap : EditorWindow
                 r.position = settings.snapToGrid ? settings.GetGridPoint(pos) : pos;
                 draggedSide.rect = r;
                 draggedSide.MapPositionFromRect(container);
-                DrawSidePreview();
+                //DrawSidePreview();
             }
         }
         if(draggedSide != null)
@@ -236,11 +247,20 @@ public class UVUnwrap : EditorWindow
         Repaint();
     }
 
+    void GenerateMesh(MeshFilter target, string path)
+    {
+        Debug.Log(string.Format("{0}", path)); 
+        var mesh = Instantiate(target.sharedMesh);
+        mesh.uv = UVUnwrapSettings.Instance.GenerateUV();
+        AssetDatabase.CreateAsset(mesh, path);
+    }
+
     void DrawSidePreview()
     {
         if(draggedSide != null && UVUnwrapSettings.Instance.targetTexture != null)
         {
             var targetTex = UVUnwrapSettings.Instance.targetTexture;
+            var settings = UVUnwrapSettings.Instance;
             var offset = new Vector2(draggedSide.uvs[0].x * targetTex.width, draggedSide.uvs[0].y * targetTex.height);
             for (int x = 0; x < _tmpTexture.width; x++)
             {
@@ -255,11 +275,12 @@ public class UVUnwrap : EditorWindow
 
     void SwitchSide(UVUnwrapSettings.Side side)
     {
-        if(draggedSide != side)
+        if(draggedSide != side && UVUnwrapSettings.Instance.targetTexture != null)
         {
+            var settings = UVUnwrapSettings.Instance;
             draggedSide = side;
             DestroyImmediate(_tmpTexture);
-            _tmpTexture = new Texture2D((int)draggedSide.rect.width, (int) draggedSide.rect.height, TextureFormat.ARGB32, false);
+            _tmpTexture = new Texture2D((int)(settings.targetTexture.width * draggedSide.scaledSize.x), (int) (settings.targetTexture.height * draggedSide.scaledSize.y), TextureFormat.ARGB32, false);
             DrawSidePreview();
         }
       
