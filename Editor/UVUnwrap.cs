@@ -8,13 +8,14 @@ public class UVUnwrap : EditorWindow
     Texture2D dummyTexture, blackTexture;
     UVUnwrapSettings.Side draggedSide;
     Vector2 pressedMousePos, pressedSidePos;
+    Texture2D _tmpTexture;
     Texture2D _lockIcon;
     Texture2D lockIcon
     {
         get
         {
             if (_lockIcon == null)
-                _lockIcon = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/UV Unwrapper/lock.png");
+                _lockIcon = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/UVUnwrapper/lock_icon.png");
             return _lockIcon;
         }
     }
@@ -30,6 +31,7 @@ public class UVUnwrap : EditorWindow
 
     void OnDestroy()
     {
+        DestroyImmediate(_tmpTexture);
         DestroyImmediate(dummyTexture);
         DestroyImmediate(blackTexture);
     }
@@ -58,6 +60,10 @@ public class UVUnwrap : EditorWindow
 
     void OnGUI()
     {
+        var y = 5f;
+        float dockWidth = 350;
+        float elementYOffset = 25;
+
         var settings = UVUnwrapSettings.Instance;
         if (dummyTexture == null)
              dummyTexture = GetDummyTexture();
@@ -67,13 +73,12 @@ public class UVUnwrap : EditorWindow
         var height = EditorGUILayout.GetControlRect().height;
         settings.textureRect = settings.targetTexture == null ?
             new Rect(5, 35, settings.textureSize * settings.gridSize, settings.textureSize * settings.gridSize) :
-            new Rect(5, 35, settings.targetTexture.width * settings.zoom, settings.targetTexture.height * settings.zoom);
+            new Rect(5, 35, settings.targetTexture.width * settings.zoom * 2, settings.targetTexture.height * settings.zoom * 2);
+        var aspect = settings.textureRect.width / settings.textureRect.height;
+        settings.textureRect.width = Mathf.Clamp(settings.textureRect.width, 10, width - dockWidth - settings.textureRect.x);
+        settings.textureRect.height = settings.textureRect.width / aspect;
 
-
-        var y = 5f;
-        float dockWidth = 350;
-        float elementYOffset = 25;
-        target = EditorGUI.ObjectField(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), target, typeof(MeshFilter), true) as MeshFilter;
+       target = EditorGUI.ObjectField(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), target, typeof(MeshFilter), true) as MeshFilter;
         var _sidesScale = settings.sidesScale;
         settings.sidesScale = EditorGUI.Slider(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), "Sides Scale", settings.sidesScale, 0f, 1f);
         if (settings.sidesScale != _sidesScale)
@@ -85,7 +90,7 @@ public class UVUnwrap : EditorWindow
             settings.RecalculateGrid();
 
         var _gridSize = settings.gridSize;
-        settings.gridSize = EditorGUI.Slider(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), "Grid Size", settings.gridSize, 5f, 50);
+        settings.gridSize = EditorGUI.Slider(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), "Grid Size", settings.gridSize, 1f, 50);
         if (settings.gridSize != _gridSize)
             settings.RecalculateGrid();
 
@@ -102,19 +107,32 @@ public class UVUnwrap : EditorWindow
 
         var gc = GUI.color;
         y += elementYOffset;
-        for (int i = 0; i < 6; i++)
+        for (int i = 0; i < settings.sides.Count; i++)
         {
             var side = settings.sides[i];
             GUI.color = gc;
-            side.locked = EditorGUI.ToggleLeft(new Rect(width - dockWidth + 180, y, 50, 16), " Lock", side.locked);
+            side.locked = EditorGUI.Toggle(new Rect(width - dockWidth + 180, y, 16, 16), side.locked);
+            GUI.DrawTexture(new Rect(width - dockWidth + 195, y, 16, 16), lockIcon);
             GUI.color = side.color;
             GUI.Box(new Rect(width - dockWidth, y, 70, 20), blackTexture);
             GUI.color = side.locked ? gc.SetAlpha(.2f) : gc;
             EditorGUI.LabelField(new Rect(width - dockWidth, y, 50, 16), side.name);
-            EditorGUI.LabelField(new Rect(width - dockWidth + 75, y, 150, 16), string.Format("x:{0:0.000}, y:{1:0.000}", side.uv.x, side.uv.y));
-         
-          
-        
+            EditorGUI.LabelField(new Rect(width - dockWidth + 75, y, 150, 16), string.Format("x:{0:0.000}, y:{1:0.000}", side.uvOrigin.x, side.uvOrigin.y));
+            var _si = side.showInfo;
+            side.showInfo = EditorGUI.Foldout(new Rect(width - dockWidth + 220, y, 150, 16), side.showInfo, "Show Info", true);
+            if(side.showInfo && side.showInfo != _si)
+                draggedSide = side;
+            if (side.showInfo)
+            {
+                EditorGUI.LabelField(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), "UVS:", EditorStyles.centeredGreyMiniLabel);
+                y += elementYOffset;
+                for (int j = 0; j < 4; j++)
+                {
+                    EditorGUI.Vector2Field(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16),"", side.uvs[j]);
+                }
+                EditorGUI.LabelField(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), "Rect:", EditorStyles.centeredGreyMiniLabel);
+                EditorGUI.RectField(new Rect(width - dockWidth, y += elementYOffset, dockWidth, 16), side.rect);
+            }
             y += elementYOffset;
         }
         GUI.color = gc;
@@ -141,7 +159,8 @@ public class UVUnwrap : EditorWindow
 
         if(draggedSide != null)
         {
-
+            y += elementYOffset;
+            GUI.DrawTexture(new Rect(width - dockWidth, y, _tmpTexture.width, _tmpTexture.height), _tmpTexture);
         }
 
         var container = settings.textureRect;
@@ -156,7 +175,7 @@ public class UVUnwrap : EditorWindow
                     if (!side.locked && side.Contains(pressedMousePos))
                     {
                         touchedSide = true;
-                        draggedSide = side;
+                        SwitchSide(side);
                         pressedSidePos = side.rect.position;
                         break;
                     }
@@ -173,6 +192,7 @@ public class UVUnwrap : EditorWindow
                 r.position = settings.snapToGrid ? settings.GetGridPoint(pos) : pos;
                 draggedSide.rect = r;
                 draggedSide.MapPositionFromRect(container);
+                DrawSidePreview();
             }
         }
         if(draggedSide != null)
@@ -206,9 +226,43 @@ public class UVUnwrap : EditorWindow
 
             GUI.color = side.color;
             GUI.Box(side.rect, dummyTexture);
+            if(side.locked)
+            {
+                var lockWidth = side.rect.width > side.rect.height ? side.rect.width / 3 : side.rect.height / 3;
+                GUI.DrawTexture(new Rect( side.rect.center.x - lockWidth / 2, side.rect.center.y - lockWidth / 2, lockWidth, lockWidth), lockIcon);
+            }
         }
 
         Repaint();
+    }
+
+    void DrawSidePreview()
+    {
+        if(draggedSide != null && UVUnwrapSettings.Instance.targetTexture != null)
+        {
+            var targetTex = UVUnwrapSettings.Instance.targetTexture;
+            var offset = new Vector2(draggedSide.uvs[0].x * targetTex.width, draggedSide.uvs[0].y * targetTex.height);
+            for (int x = 0; x < _tmpTexture.width; x++)
+            {
+                for (int y = 0; y < _tmpTexture.height; y++)
+                {
+                    _tmpTexture.SetPixel(x, y, targetTex.GetPixel((int) (offset.x + x), (int) (offset.y + y)));
+                }
+            }
+            _tmpTexture.Apply();
+        }
+    }
+
+    void SwitchSide(UVUnwrapSettings.Side side)
+    {
+        if(draggedSide != side)
+        {
+            draggedSide = side;
+            DestroyImmediate(_tmpTexture);
+            _tmpTexture = new Texture2D((int)draggedSide.rect.width, (int) draggedSide.rect.height, TextureFormat.ARGB32, false);
+            DrawSidePreview();
+        }
+      
     }
 
     public void DrawRectagle(Rect rect, float width = 1f)
