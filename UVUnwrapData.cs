@@ -201,10 +201,25 @@ namespace UVUnwrapper
         public Rect GetScaledTextureRect(float scale, Rect container)
         {
             var raw = GetRawTextureRect();
-            var scaled = new Rect(raw.x, raw.y, raw.width * scale, raw.height * scale);
+
+            bool portrait = raw.height > raw.width;
+
             var aspect = raw.height / raw.width;
-            textureRect = new Rect(container.x, container.y, InterfaceUtilily.Remap(scale, 0f, 1f, 50, container.width), container.height);
-            textureRect.height = aspect * textureRect.width;
+
+            textureRect = new Rect(container.x, container.y, InterfaceUtilily.Remap(scale, 0f, 1f, 50, container.width), InterfaceUtilily.Remap(scale, 0f, 1f, 50, container.width) * aspect);
+
+            if (textureRect.width > container.width)
+            {
+                textureRect.width = container.width;
+                textureRect.height = container.width * aspect;
+            }
+            if (textureRect.height > container.height)
+            {
+                textureRect.height = container.height;
+                textureRect.width = container.height / aspect;
+            }
+
+            //   textureRect.width = Mathf.Clamp(textureRect.width, 10, container.width);
             return textureRect;
         }
 
@@ -218,7 +233,7 @@ namespace UVUnwrapper
         }
         public Point TextureSize
         {
-            get { return powerOfTwo ? new Point(textureSize, textureSize) : new Point(textureWidth, textureHeight);  }
+            get { return targetTexture != null ? new Point(targetTexture.width, targetTexture.height) : new Point(textureWidth, textureHeight);  }
         }
 
         public void RecalculateGrid()
@@ -408,6 +423,7 @@ namespace UVUnwrapper
 
             public void MapRectToContainer(Rect container)
             {
+
                 rect = new Rect(
                     InterfaceUtilily.Remap(uvOrigin.x, 0f, 1f, container.x, container.x + container.width),
                     InterfaceUtilily.Remap(uvOrigin.y, 1f, 0f, container.y, container.y + container.height),

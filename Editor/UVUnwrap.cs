@@ -72,6 +72,7 @@ namespace UVUnwrapper
             EditorInterface.CenterOnMainWin(w);
             Undo.undoRedoPerformed += w.OnUndo;
             UVUnwrapData.Instance.RecalculateGrid();
+            UVUnwrapData.Instance.ScaleSides();
         }
 
         void OnDestroy()
@@ -134,7 +135,6 @@ namespace UVUnwrapper
 
             if (data.useGrid)
             {
-                var _pixelCount = data.textureWidth + data.textureHeight;
                 if (data.targetTexture == null)
                 {
                     data.textureWidth = EditorGUI.IntSlider(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Texture Width", data.textureWidth, 8, 128);
@@ -142,7 +142,7 @@ namespace UVUnwrapper
 
                 }
      
-                    data.RecalculateGrid();
+              
                 var _gridSize = data.gridSize;
                 data.gridSize = EditorGUI.Slider(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Grid Size", data.gridSize, 1f, 50);
                 if (data.gridSize != _gridSize)
@@ -156,8 +156,8 @@ namespace UVUnwrapper
             data.targetTexture = EditorGUI.ObjectField(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Target Texture", data.targetTexture, typeof(Texture2D), true) as Texture2D;
 
             var _zoom = data.zoom;
-            data.zoom = EditorGUI.Slider(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Zoom", data.zoom, 0.01f, 1f);
-
+            //    data.zoom = EditorGUI.Slider(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Zoom", data.zoom, 0.01f, 1f);
+            data.zoom = 1f;
             if (data.zoom != _zoom)
             {
                 data.ScaleSides();
@@ -170,6 +170,19 @@ namespace UVUnwrapper
             }
             var container = data.GetScaledTextureRect(data.zoom, new Rect(10, 10, position.width - dockWidth - 20, position.height - 20));
 
+            if (GUI.Button(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Generate Texture"))
+            {
+                var texName = string.Format("{0}_{1}x{2}", target != null ? target.name + "_texture" : "texture", data.TextureSize.x, data.TextureSize.y);
+                var path = EditorUtility.SaveFilePanelInProject("Save texture", texName, "png", data.texturePath, data.texturePath);
+                if (!string.IsNullOrEmpty(path))
+                {
+                    data.texturePath = path;
+                    var t = GenerateGradientMap(data.TextureSize.x, data.TextureSize.y, .0f, .9f, .75f, .75f);
+                    System.IO.File.WriteAllBytes(path, t.EncodeToPNG());
+                    AssetDatabase.ImportAsset(path);
+                }
+            }
+
             if (target != null)
             {
                 if (GUI.Button(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Generate Sides"))
@@ -178,17 +191,7 @@ namespace UVUnwrapper
 
                     data.ScaleSides();
                 }
-                if (GUI.Button(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Generate Texture"))
-                {
-                    var path = EditorUtility.SaveFilePanelInProject("Save texture", target.name + "_texture", "png", data.texturePath, data.texturePath);
-                    if (!string.IsNullOrEmpty(path))
-                    {
-                        data.texturePath = path;
-                        var t = GenerateGradientMap(data.TextureSize.x, data.TextureSize.y, .0f, .9f, .75f, .75f);
-                        System.IO.File.WriteAllBytes(path, t.EncodeToPNG());
-                        AssetDatabase.ImportAsset(path);
-                    }
-                }
+               
                 if (GUI.Button(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Generate Mesh"))
                 {
                     var path = EditorUtility.SaveFilePanelInProject("Save mesh", target.name + "_mesh", "asset", data.meshPath, data.meshPath);
@@ -361,9 +364,13 @@ namespace UVUnwrapper
 
         public void UpdateTargetUV()
         {
-            var mesh = target.sharedMesh;
-            mesh.uv = UVUnwrapData.Instance.GenerateUV();
-            EditorUtility.SetDirty(mesh);
+            if(target)
+            {
+                var mesh = target.sharedMesh;
+                mesh.uv = UVUnwrapData.Instance.GenerateUV();
+                EditorUtility.SetDirty(mesh);
+            }
+
         }
 
         void GenerateMesh(MeshFilter target, string path)
