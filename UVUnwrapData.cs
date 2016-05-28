@@ -5,12 +5,12 @@ namespace UVUnwrapper
 {
     public class UVUnwrapData : EditorSettings<UVUnwrapData>
     {
-        public static readonly int[] FRONT = new int[] { 4, 5, 6, 7 };
-        public static readonly int[] RIGHT = new int[] { 23, 20, 21, 22 };
-        public static readonly int[] BACK = new int[] { 1, 2, 3, 0 };
-        public static readonly int[] LEFT = new int[] { 13, 14, 15, 12 };
-        public static readonly int[] TOP = new int[] { 16, 17, 18, 19 };
-        public static readonly int[] BOTTOM = new int[] { 8, 9, 10, 11 };
+        public static readonly int[] FRONT = new int[] { 0, 2, 3, 1 };
+        public static readonly int[] RIGHT = new int[] { 20,21, 22, 23 };
+        public static readonly int[] BACK = new int[] { 7, 11, 10, 6 };
+        public static readonly int[] LEFT = new int[] { 16,17, 18, 19 };
+        public static readonly int[] TOP = new int[] { 8, 4, 5, 9 };
+        public static readonly int[] BOTTOM = new int[] { 12, 13, 14, 15 };
         public static readonly int[][] ALL_SIDES = new int[][] { FRONT, TOP, BACK, RIGHT, BOTTOM, LEFT };
 
         public enum CubeSide
@@ -122,7 +122,7 @@ namespace UVUnwrapper
                 case CubeSide.FRONT:
                     return new Vector2(InterfaceUtilily.Remap(point.x, -boxScale.x, boxScale.x, u0.x, u3.x), InterfaceUtilily.Remap(point.y, boxScale.y, -boxScale.y, u0.y, u1.y));
                 case CubeSide.TOP:
-                    return new Vector2(InterfaceUtilily.Remap(point.x, boxScale.x, -boxScale.x, u0.x, u3.x), InterfaceUtilily.Remap(point.z, boxScale.z, -boxScale.z, u0.y, u1.y));
+                    return new Vector2(InterfaceUtilily.Remap(point.x, -boxScale.x, boxScale.x, u0.x, u3.x), InterfaceUtilily.Remap(point.z, -boxScale.z, boxScale.z, u0.y, u1.y));
                 case CubeSide.BACK:
                     return new Vector2(InterfaceUtilily.Remap(point.x, boxScale.x, -boxScale.x, u0.x, u3.x), InterfaceUtilily.Remap(point.y, boxScale.y, -boxScale.y, u0.y, u1.y));
                 case CubeSide.RIGHT:
@@ -178,9 +178,10 @@ namespace UVUnwrapper
         public List<Side> sides;
         public bool powerOfTwo = true;
         public bool snapToGrid = false;
-        public bool useGrid = false;
+        public bool showGrid = false;
         public float zoom = 1f;
         public Vector2 winSize;
+        public bool maximized = false;
         [SerializeField]
         Rect textureRect;
         public Texture2D targetTexture = null;
@@ -190,11 +191,11 @@ namespace UVUnwrapper
         public bool autoUpdateTargetUV = false;
 
         public string meshPath, texturePath;
-
+        public float poinsPerPixel { get { return textureRect.width / TextureSize.x; } }
         public Rect GetRawTextureRect()
         {
             return targetTexture == null ?
-                new Rect(0, 0, grid.Width, grid.Height) :
+                new Rect(0, 0, grid.ColumnCount, grid.RowCount) :
                 new Rect(0, 0, targetTexture.width, targetTexture.height);
         }
 
@@ -229,24 +230,17 @@ namespace UVUnwrapper
 
         public Grid grid
         {
-            get { if (_grid == null) _grid = new Grid(); return _grid; }
+            get { if (_grid == null) _grid = new Grid(TextureSize.x, TextureSize.y, poinsPerPixel, textureRect.position); return _grid; }
         }
         public Point TextureSize
         {
             get { return targetTexture != null ? new Point(targetTexture.width, targetTexture.height) : new Point(textureWidth, textureHeight);  }
         }
 
-        public void RecalculateGrid()
+        void RecalculateGrid()
         {
-            if (targetTexture == null)
-            {
-                grid.CreateGrid(TextureSize.x, TextureSize.y, zoom * gridSize, textureRect.position);
-            }
-            else
-            {
-                grid.CreateGrid(Mathf.FloorToInt (textureRect.width / gridSize), Mathf.FloorToInt(textureRect.height / gridSize), zoom * gridSize, textureRect.position);
-            }
-            if(scaleSidesWithGrid)
+            _grid = new Grid(TextureSize.x, TextureSize.y, poinsPerPixel, textureRect.position);
+            if (scaleSidesWithGrid)
             {
                 BindSidesToContainer();
             }
@@ -430,20 +424,20 @@ namespace UVUnwrapper
                     InterfaceUtilily.Remap(scaledSize.x, 0f, 1f, 0, container.width),
                     InterfaceUtilily.Remap(scaledSize.y, 0f, 1f, 0, container.width)
                 );
-                //if (Instance.snapToGrid)
-                //{
-                //    rect.width = Mathf.RoundToInt(Instance.grid.Width / rect.width) * Instance.grid.Size;
-                //    rect.height = Mathf.RoundToInt(Instance.grid.Height / rect.height) * Instance.grid.Size;
-                //}
+                if (Instance.snapToGrid && Instance.poinsPerPixel > 3)
+                {
+                    rect.width = Instance.poinsPerPixel * Mathf.RoundToInt(rect.width /  Instance.poinsPerPixel);
+                    rect.height = Instance.poinsPerPixel * Mathf.RoundToInt(rect.height / Instance.poinsPerPixel);
+                }
             }
 
             public void MapRectToGrid(Grid grid, int x, int y)
             {
                 rect = new Rect(
-                    InterfaceUtilily.Remap(uvOrigin.x, 0f, 1f, 0f, grid.Width),
-                    InterfaceUtilily.Remap(uvOrigin.y, 0f, 1f, 0f, grid.Height),
-                    x * grid.Width,
-                    y * grid.Height);
+                    InterfaceUtilily.Remap(uvOrigin.x, 0f, 1f, 0f, grid.ColumnCount),
+                    InterfaceUtilily.Remap(uvOrigin.y, 0f, 1f, 0f, grid.RowCount),
+                    x * grid.ColumnCount,
+                    y * grid.RowCount);
             }
 
             public void MapPositionFromRect(Rect container)
@@ -471,10 +465,10 @@ namespace UVUnwrapper
 
             sides.Add(new Side(scale.x, scale.y, CubeSide.FRONT,Color.HSVToRGB(.1f, .7f, .7f)) * size);
             sides.Add(new Side(scale.x, scale.z, CubeSide.TOP, Color.HSVToRGB(.2f, .7f, .7f)) * size);
-            sides.Add(new Side(scale.y, scale.x, CubeSide.BACK, Color.HSVToRGB(.3f, .7f, .7f)) * size);
-            sides.Add(new Side(scale.y, scale.z, CubeSide.RIGHT, Color.HSVToRGB(.4f, .7f, .7f)) * size);
+            sides.Add(new Side(scale.x, scale.y, CubeSide.BACK, Color.HSVToRGB(.3f, .7f, .7f)) * size);
+            sides.Add(new Side(scale.z, scale.y, CubeSide.RIGHT, Color.HSVToRGB(.4f, .7f, .7f)) * size);
             sides.Add(new Side(scale.x, scale.z, CubeSide.BOTTOM, Color.HSVToRGB(.5f, .7f, .7f)) * size);
-            sides.Add(new Side(scale.y, scale.z, CubeSide.LEFT, Color.HSVToRGB(.6f, .7f, .7f)) * size);
+            sides.Add(new Side(scale.z, scale.y, CubeSide.LEFT, Color.HSVToRGB(.6f, .7f, .7f)) * size);
             var copyList = new List<Side>(sides);
             copyList.Sort((s1, s2) => s1.size.magnitude.CompareTo(s2.size.magnitude));
             var biggestSide = copyList.LastItem().size;

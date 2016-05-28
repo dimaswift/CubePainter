@@ -71,7 +71,6 @@ namespace UVUnwrapper
             w.Show();
             EditorInterface.CenterOnMainWin(w);
             Undo.undoRedoPerformed += w.OnUndo;
-            UVUnwrapData.Instance.RecalculateGrid();
             UVUnwrapData.Instance.ScaleSides();
         }
 
@@ -86,44 +85,37 @@ namespace UVUnwrapper
         void OnUndo()
         {
             var data = UVUnwrapData.Instance;
-            if (data.targetTexture == null)
-                data.RecalculateGrid();
+            data.ScaleSides();
             if (data.autoUpdateTargetUV)
                 UpdateTargetUV();
         }
 
         void OnGUI()
         {
-
+            
             var y = 5f;
             float dockWidth = 350;
             float elementHeight = 25;
             var data = UVUnwrapData.Instance;
-            var dockPosX = position.width - dockWidth;
+            var dockPosX = position.width - dockWidth - 5;
             var gc = GUI.color;
             var winSize = new Vector2(position.width, position.height);
 
-            if(data.winSize != winSize)
+            var container = data.GetScaledTextureRect(data.zoom, new Rect(10, 10, position.width - dockWidth - 20, position.height - 20));
+            if (data.maximized != maximized)
             {
                 data.ScaleSides();
-                data.winSize = winSize;
-                if (data.autoUpdateTargetUV)
-                    UpdateTargetUV();
+                data.maximized = maximized;
             }
+             
+
             Undo.RecordObject(data, "UVUnwraper Settings");
-
-       
-            if (data.targetTexture != null)
-            {
-                
-            }
-
-        
 
             target = (EditorGUI.ObjectField(new Rect(dockPosX, y += elementHeight, dockWidth, 16), target, typeof(MeshFilter), true) as MeshFilter);
 
             var _sidesScale = data.sidesScale;
-            data.sidesScale = EditorGUI.Slider(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Sides Scale", data.sidesScale, .1f, 5f);
+            data.sidesScale = EditorGUI.Slider(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Sides Scale", data.sidesScale, 0.1f, 5f);
+
             if (data.sidesScale != _sidesScale)
             {
                 data.ScaleSides();
@@ -131,30 +123,23 @@ namespace UVUnwrapper
                     UpdateTargetUV();
             }
 
-            data.useGrid = EditorGUI.Toggle(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Use Grid", data.useGrid);
+            data.showGrid = EditorGUI.Toggle(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Show Grid", data.showGrid);
 
-            if (data.useGrid)
-            {
-                if (data.targetTexture == null)
-                {
-                    data.textureWidth = EditorGUI.IntSlider(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Texture Width", data.textureWidth, 8, 128);
-                    data.textureHeight = EditorGUI.IntSlider(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Texture Height", data.textureHeight, 8, 128);
-
-                }
      
-              
-                var _gridSize = data.gridSize;
-                data.gridSize = EditorGUI.Slider(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Grid Size", data.gridSize, 1f, 50);
-                if (data.gridSize != _gridSize)
-                    data.RecalculateGrid();
-                data.snapToGrid = EditorGUI.Toggle(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Snap To Grid", data.snapToGrid);
-
+            if (data.targetTexture == null)
+            {
+                data.textureWidth = EditorGUI.IntSlider(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Texture Width", data.textureWidth, 8, 128);
+                data.textureHeight = EditorGUI.IntSlider(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Texture Height", data.textureHeight, 8, 128);
             }
 
+            data.snapToGrid = EditorGUI.Toggle(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Snap To Grid", data.snapToGrid);
+
             data.autoUpdateTargetUV = EditorGUI.Toggle(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Auto Update UVs", data.autoUpdateTargetUV);
-
+            var tt = data.targetTexture;
+            bool recalculateGrid = false;
             data.targetTexture = EditorGUI.ObjectField(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Target Texture", data.targetTexture, typeof(Texture2D), true) as Texture2D;
-
+            if (tt != data.targetTexture)
+                recalculateGrid = true;
             var _zoom = data.zoom;
             //    data.zoom = EditorGUI.Slider(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Zoom", data.zoom, 0.01f, 1f);
             data.zoom = 1f;
@@ -166,10 +151,9 @@ namespace UVUnwrapper
 
             if (GUI.Button(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Recalculate Grid"))
             {
-                data.RecalculateGrid();
+                data.ScaleSides();
             }
-            var container = data.GetScaledTextureRect(data.zoom, new Rect(10, 10, position.width - dockWidth - 20, position.height - 20));
-
+          
             if (GUI.Button(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Generate Texture"))
             {
                 var texName = string.Format("{0}_{1}x{2}", target != null ? target.name + "_texture" : "texture", data.TextureSize.x, data.TextureSize.y);
@@ -293,9 +277,14 @@ namespace UVUnwrapper
                     var pos = pressedSidePos + (e.mousePosition - pressedMousePos);
                     pos.x = Mathf.Clamp(pos.x, container.x, container.x + container.width - r.width);
                     pos.y = Mathf.Clamp(pos.y, container.y, container.y + container.height - r.height);
-                    r.position = data.snapToGrid ? data.GetGridPoint(pos) : pos;
+                    if(data.snapToGrid && data.poinsPerPixel > 3)
+                    {
+                        pos.x = data.grid.GetClosetColumn(pos.x);
+                        pos.y = data.grid.GetClosetRow(pos.y);
+                    }
+                    r.position = pos;
                     draggedSide.rect = r;
-
+                     
                     draggedSide.MapPositionFromRect(container);
                     if (data.autoUpdateTargetUV)
                         UpdateTargetUV();
@@ -308,15 +297,15 @@ namespace UVUnwrapper
                 DrawRectagle(draggedSide.rect, 2);
                 GUI.color = gc;
             }
-            if (data.targetTexture == null)
+            if (data.poinsPerPixel > 3 && data.showGrid)
             {
-                for (int i = 0; i < data.grid.Width; i++)
+                for (int i = 0; i < data.grid.RowCount; i++)
                 {
-                    GUI.DrawTexture(new Rect(container.x, data.grid.GetColumn(i), container.width, 1), blackTexture, ScaleMode.StretchToFill);
+                    GUI.DrawTexture(new Rect(container.x, data.grid.GetRow(i), container.width, 1), blackTexture, ScaleMode.StretchToFill);
                 }
-                for (int i = 0; i < data.grid.Height; i++)
+                for (int i = 0; i < data.grid.ColumnCount; i++)
                 {
-                    GUI.DrawTexture(new Rect(data.grid.GetRow(i), container.y, 1, container.height), blackTexture, ScaleMode.StretchToFill);
+                    GUI.DrawTexture(new Rect(data.grid.GetColumn(i), container.y, 1, container.height), blackTexture, ScaleMode.StretchToFill);
                 }
 
                 GUI.DrawTexture(new Rect(container.x, container.y + container.height, container.width, 1), blackTexture, ScaleMode.StretchToFill);
@@ -341,6 +330,17 @@ namespace UVUnwrapper
                     var lockWidth = side.rect.width > side.rect.height ? side.rect.width / 3 : side.rect.height / 3;
                     GUI.DrawTexture(new Rect(side.rect.center.x - lockWidth / 2, side.rect.center.y - lockWidth / 2, lockWidth, lockWidth), lockIcon);
                 }
+            }
+            if(recalculateGrid)
+            {
+                data.ScaleSides();
+            }
+            if (data.winSize != winSize)
+            {
+                data.ScaleSides();
+                data.winSize = winSize;
+                if (data.autoUpdateTargetUV)
+                    UpdateTargetUV();
             }
             EditorUtility.SetDirty(data);
             Repaint();
