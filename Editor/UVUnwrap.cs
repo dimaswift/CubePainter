@@ -90,6 +90,8 @@ namespace UVUnwrapper
                 UpdateTargetUV();
         }
 
+
+
         void OnGUI()
         {
             
@@ -140,33 +142,27 @@ namespace UVUnwrapper
             data.targetTexture = EditorGUI.ObjectField(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Target Texture", data.targetTexture, typeof(Texture2D), true) as Texture2D;
             if (tt != data.targetTexture)
                 recalculateGrid = true;
-            var _zoom = data.zoom;
-            //    data.zoom = EditorGUI.Slider(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Zoom", data.zoom, 0.01f, 1f);
-            data.zoom = 1f;
-            if (data.zoom != _zoom)
-            {
-                data.ScaleSides();
-
-            }
 
             if (GUI.Button(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Recalculate Grid"))
             {
                 data.ScaleSides();
             }
-          
-            if (GUI.Button(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Generate Texture"))
+            data.generateTextureType = (UVUnwrapData.TextureType) EditorGUI.Popup(new Rect(dockPosX + 5 + dockWidth / 2, y += elementHeight, (dockWidth / 2) - 5, 16), (int) data.generateTextureType, System.Enum.GetNames(typeof(UVUnwrapData.TextureType)));
+      
+            if (GUI.Button(new Rect(dockPosX, y, dockWidth / 2, 16), "Generate  Texture"))
             {
                 var texName = string.Format("{0}_{1}x{2}", target != null ? target.name + "_texture" : "texture", data.TextureSize.x, data.TextureSize.y);
                 var path = EditorUtility.SaveFilePanelInProject("Save texture", texName, "png", data.texturePath, data.texturePath);
                 if (!string.IsNullOrEmpty(path))
                 {
                     data.texturePath = path;
-                    var t = GenerateGradientMap(data.TextureSize.x, data.TextureSize.y, .0f, .9f, .75f, .75f);
+                    var t = UVUnwrapData.GenerateTexture(data.TextureSize.x, data.TextureSize.y, data.generateTextureType, data.color1, data.color2);
                     System.IO.File.WriteAllBytes(path, t.EncodeToPNG());
                     AssetDatabase.ImportAsset(path);
                 }
             }
-
+            data.color1 = EditorGUI.ColorField(new Rect(dockPosX, y += elementHeight, (dockWidth / 2) - 5, 16), data.color1);
+            data.color2 = EditorGUI.ColorField(new Rect(dockPosX + 5 + dockWidth / 2, y, (dockWidth / 2) - 5, 16), data.color2);
             if (target != null)
             {
                 if (GUI.Button(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Generate Sides"))
@@ -189,6 +185,18 @@ namespace UVUnwrapper
                 {
                     UpdateTargetUV();
                 }
+                if (GUI.Button(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Save Prefab"))
+                {
+                    var path = EditorUtility.SaveFilePanelInProject("Enter prefab name", target.name, "prefab", "", data.prefabPath);
+                    if (!string.IsNullOrEmpty(path))
+                    {
+
+                        data.prefabPath = path;
+                        CreatePrefab(InterfaceUtilily.ConvertLoRelativePath( new System.IO.FileInfo(path).Directory.FullName), System.IO.Path.GetFileNameWithoutExtension(path), data.createFolder, data.targetTexture);
+                    }
+                }
+                data.createFolder = EditorGUI.Toggle(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Create Folder", data.createFolder);
+
             }
             y += elementHeight;
             for (int i = 0; i < data.sides.Count; i++)
@@ -284,7 +292,7 @@ namespace UVUnwrapper
                     }
                     r.position = pos;
                     draggedSide.rect = r;
-                     
+                      
                     draggedSide.MapPositionFromRect(container);
                     if (data.autoUpdateTargetUV)
                         UpdateTargetUV();
@@ -333,6 +341,7 @@ namespace UVUnwrapper
             }
             if(recalculateGrid)
             {
+               
                 data.ScaleSides();
             }
             if (data.winSize != winSize)
@@ -346,21 +355,6 @@ namespace UVUnwrapper
             Repaint();
         }
 
-        public static Texture2D GenerateGradientMap(int width, int height, float minHue = 0f, float maxHue = 1f, float minSat = 0f, float maxSat = 1f)
-        {
-            var t = new Texture2D(width, height, TextureFormat.ARGB32, true);
-            for (int x = 0; x < width; x++)
-            {
-                for (int y = 0; y < height; y++)
-                {
-                    var diag = x + y;
-                    var c = Color.HSVToRGB(InterfaceUtilily.Remap(diag, 0, width + height, minHue, maxHue), 1, 1);
-                    t.SetPixel(x, y, c);
-                }
-            }
-            t.Apply();
-            return t;
-        }
 
         public void UpdateTargetUV()
         {
@@ -371,6 +365,37 @@ namespace UVUnwrapper
                 EditorUtility.SetDirty(mesh);
             }
 
+        }
+
+        public void CreatePrefab(string assetFolder, string name, bool createFolder, Texture2D texture)
+        {
+            var data = UVUnwrapData.Instance;
+            var prefab = Instantiate(target);
+            var mesh = Instantiate(target.sharedMesh);
+            var mat = Instantiate(target.GetComponent<MeshRenderer>().sharedMaterial);
+
+            mesh.uv = data.GenerateUV();
+            prefab.sharedMesh = mesh;
+            if (createFolder)
+            {
+                AssetDatabase.CreateFolder(assetFolder, name);
+                assetFolder += "/" + name.ToUpperInvariant(); 
+            }
+            var meshPath = assetFolder + "/" + name + "_mesh.asset";
+            var prefabPath = assetFolder + "/" + name + "_prefab.prefab";
+            var matPath = assetFolder + "/" + name + "_mat.mat";
+            var texPath = assetFolder + "/" + name + "_decal.png";
+
+            prefab.GetComponent<MeshRenderer>().sharedMaterial = mat;
+            System.IO.File.WriteAllBytes(Application.dataPath + texPath.Remove(0, 6), texture.EncodeToPNG());
+            AssetDatabase.ImportAsset(texPath);
+            mat.SetTexture("_Decal", AssetDatabase.LoadAssetAtPath<Texture2D>(texPath));
+            AssetDatabase.CreateAsset(mesh, meshPath);
+            AssetDatabase.CreateAsset(mat, matPath);
+            EditorUtility.SetDirty(prefab);  
+            EditorUtility.SetDirty(mesh);
+            PrefabUtility.CreatePrefab(prefabPath, prefab.gameObject);
+            DestroyImmediate(prefab.gameObject);
         }
 
         void GenerateMesh(MeshFilter target, string path)

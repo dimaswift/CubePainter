@@ -59,12 +59,12 @@ namespace UVUnwrapper
             return (vertices[indices[0]] - vertices[indices[1]]).normalized;
         }
 
-
+        static int[] _sideCache = new int[4];
         public static Vector2 GetUVPoint(Vector3 boxScale, Vector3 point, Vector2[] uvs, Vector3[] vertices, float penetration = 0.0001f)
         {
             var side = GetSide(point, boxScale, penetration);
 
-            var canvas = RotateSideIndices(side, Vector2.left, new int[4]);
+            var canvas = RotateSideIndices(side, Vector2.left, _sideCache);
             var faceDir = GetFaceDirection(canvas, uvs, vertices);
             var uvDir = GetUVSideDirection(canvas, uvs, vertices);
 
@@ -83,39 +83,6 @@ namespace UVUnwrapper
 
             var normal = Vector3.Dot(faceDir, uvDir);
             Vector3 axis = GetSideDirection(side);
-            //Debug.Log(string.Format("n:{0}", normal));
-            //Debug.Log(string.Format("{0}", side)); 
-            //switch (side)
-            //{
-            //    case CubeSide.FRONT:
-            //        if(normal == 0)
-            //            return new Vector2(InterfaceUtilily.Remap(point.x, boxScale.x, -boxScale.x, u0.x, u3.x), InterfaceUtilily.Remap(point.y, -boxScale.y, boxScale.y, u0.y, u1.y));
-            //        else if(normal > 0)
-            //            return new Vector2(InterfaceUtilily.Remap(point.y, -boxScale.y, boxScale.y, u0.y, u1.y), InterfaceUtilily.Remap(point.x, boxScale.x, -boxScale.x, u0.x, u3.x));
-            //        else return new Vector2(InterfaceUtilily.Remap(point.y, boxScale.y, -boxScale.y, u0.y, u1.y), InterfaceUtilily.Remap(point.x, -boxScale.x, boxScale.x, u0.x, u3.x));
-            //    case CubeSide.TOP:
-            //        break;
-            //    case CubeSide.BACK:
-            //        if (normal == 0)
-            //            return new Vector2(InterfaceUtilily.Remap(point.x, boxScale.x, -boxScale.x, u0.x, u1.x), InterfaceUtilily.Remap(point.y, -boxScale.y, boxScale.y, u0.y, u3.y));
-            //        else if (normal > 0)
-            //            return new Vector2(InterfaceUtilily.Remap(point.y, -boxScale.y, boxScale.y, u0.y, u1.y), InterfaceUtilily.Remap(point.x, boxScale.x, -boxScale.x, u0.x, u3.x));
-            //        else return new Vector2(InterfaceUtilily.Remap(point.y, boxScale.y, -boxScale.y, u0.y, u1.y), InterfaceUtilily.Remap(point.x, -boxScale.x, boxScale.x, u0.x, u3.x));
-            //    case CubeSide.RIGHT:
-            //        break;
-            //    case CubeSide.BOTTOM:
-            //        break;
-            //    case CubeSide.LEFT:
-            //        break;
-            //    default:
-            //        break;
-            //}
-
-
-
-
-
-
 
             switch (side)
             {
@@ -179,9 +146,14 @@ namespace UVUnwrapper
         public bool powerOfTwo = true;
         public bool snapToGrid = false;
         public bool showGrid = false;
+        public bool createFolder = false;
+        public Color color1 = Color.white;
+        public Color color2 = new Color(0, .2f, .8f, 1);
         public float zoom = 1f;
         public Vector2 winSize;
         public bool maximized = false;
+        public enum TextureType { Gradient, Clear, Checker, Margin, Color }
+        public TextureType generateTextureType;
         [SerializeField]
         Rect textureRect;
         public Texture2D targetTexture = null;
@@ -190,7 +162,7 @@ namespace UVUnwrapper
         public bool scaleSidesWithGrid;
         public bool autoUpdateTargetUV = false;
 
-        public string meshPath, texturePath;
+        public string meshPath, texturePath, prefabPath, prefabFolder;
         public float poinsPerPixel { get { return textureRect.width / TextureSize.x; } }
         public Rect GetRawTextureRect()
         {
@@ -254,6 +226,48 @@ namespace UVUnwrapper
             }
         }
 
+        public static Texture2D GenerateTexture(int width, int height, TextureType type, Color c1, Color c2)
+        {
+            var t = new Texture2D(width, height, TextureFormat.ARGB32, true);
+            bool check = false;
+            float minHue, maxHue, minSat, maxSat, minV, maxV;
+   
+            Color.RGBToHSV(c1, out minHue, out minSat, out minV);
+            Color.RGBToHSV(c2, out maxHue, out maxSat, out maxV);
+            for (int x = 0; x < width; x++)
+            {
+                check = !check;
+                for (int y = 0; y < height; y++)
+                {
+                    check = !check;
+                    Color color = new Color();
+                    switch (type)
+                    {
+                        case TextureType.Gradient:
+                            var diag = x + y;
+                            color = Color.HSVToRGB(InterfaceUtilily.Remap(diag, 0, width + height, minHue, maxHue),
+                                InterfaceUtilily.Remap(diag, 0, width + height, minSat, maxSat), InterfaceUtilily.Remap(diag, 0, width + height, minV, maxV));
+                            break;
+                        case TextureType.Clear:
+                            color = new Color(0, 0, 0, 0);
+                            break;
+                        case TextureType.Checker:
+                            color = check ? c1 : c2;
+                            break;
+                        case TextureType.Margin:
+                            color = y == 0 || y == height - 1 || x == 0 || x == width - 1 ? c1 : c2;
+                            break;
+                        case TextureType.Color:
+                            color = c1;
+                            break;
+                    }
+                   
+                    t.SetPixel(x, y, color);
+                }
+            }
+            t.Apply();
+            return t;
+        }
         public Texture2D GenerateTexture()
         {
             var t = new Texture2D(TextureSize.x, TextureSize.y, TextureFormat.ARGB32, true);
