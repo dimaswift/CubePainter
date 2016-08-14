@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEditor;
 using HandyUtilities;
 
-namespace UVUnwrapper
+namespace CubePainter.UVUnwrapper
 {
     [InitializeOnLoad]
     public class UVUnwrapEditor : EditorWindow
@@ -40,7 +40,7 @@ namespace UVUnwrapper
             get
             {
                 if (_lockIcon == null)
-                    _lockIcon = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Unity-UV-Unwrapper/lock_icon.png");
+                    _lockIcon = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/CubePainter/lock_icon.png");
                 return _lockIcon;
             }
         }

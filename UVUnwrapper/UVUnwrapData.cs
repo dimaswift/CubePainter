@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using HandyUtilities;
 
-namespace UVUnwrapper
+namespace CubePainter.UVUnwrapper
 {
     public class UVUnwrapData : EditorSettings<UVUnwrapData>
     {
