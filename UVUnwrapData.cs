@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using System.Collections.Generic;
+using HandyUtilities;
 
 namespace UVUnwrapper
 {
@@ -18,6 +19,8 @@ namespace UVUnwrapper
         {
             FRONT = 0, TOP = 1, BACK = 2, RIGHT = 3, BOTTOM = 4, LEFT = 5
         }
+
+        public enum UVChannel { UVChannle1, UVChannle2 }
 
         public static int[] GetSideIndices(CubeSide side)
         {
@@ -85,17 +88,17 @@ namespace UVUnwrapper
             switch (side)
             {
                 case CubeSide.FRONT:
-                    return new Vector2(InterfaceUtilily.Remap(point.x, -cubeScale.x, cubeScale.x, u0.x, u3.x), InterfaceUtilily.Remap(point.y, cubeScale.y, -cubeScale.y, u0.y, u1.y));
+                    return new Vector2(Helper.Remap(point.x, -cubeScale.x, cubeScale.x, u0.x, u3.x), Helper.Remap(point.y, cubeScale.y, -cubeScale.y, u0.y, u1.y));
                 case CubeSide.TOP:
-                    return new Vector2(InterfaceUtilily.Remap(point.x, -cubeScale.x, cubeScale.x, u0.x, u3.x), InterfaceUtilily.Remap(point.z, -cubeScale.z, cubeScale.z, u0.y, u1.y));
+                    return new Vector2(Helper.Remap(point.x, -cubeScale.x, cubeScale.x, u0.x, u3.x), Helper.Remap(point.z, -cubeScale.z, cubeScale.z, u0.y, u1.y));
                 case CubeSide.BACK:
-                    return new Vector2(InterfaceUtilily.Remap(point.x, cubeScale.x, -cubeScale.x, u0.x, u3.x), InterfaceUtilily.Remap(point.y, cubeScale.y, -cubeScale.y, u0.y, u1.y));
+                    return new Vector2(Helper.Remap(point.x, cubeScale.x, -cubeScale.x, u0.x, u3.x), Helper.Remap(point.y, cubeScale.y, -cubeScale.y, u0.y, u1.y));
                 case CubeSide.RIGHT:
-                    return new Vector2(InterfaceUtilily.Remap(point.z, cubeScale.z, -cubeScale.z, u0.x, u3.x), InterfaceUtilily.Remap(point.y, cubeScale.y, -cubeScale.y, u0.y, u1.y));
+                    return new Vector2(Helper.Remap(point.z, cubeScale.z, -cubeScale.z, u0.x, u3.x), Helper.Remap(point.y, cubeScale.y, -cubeScale.y, u0.y, u1.y));
                 case CubeSide.BOTTOM:
-                    return new Vector2(InterfaceUtilily.Remap(point.x, -cubeScale.x, cubeScale.x, u0.x, u3.x), InterfaceUtilily.Remap(point.z, cubeScale.z, -cubeScale.z, u0.y, u1.y));
+                    return new Vector2(Helper.Remap(point.x, -cubeScale.x, cubeScale.x, u0.x, u3.x), Helper.Remap(point.z, cubeScale.z, -cubeScale.z, u0.y, u1.y));
                 case CubeSide.LEFT:
-                    return new Vector2(InterfaceUtilily.Remap(point.z, -cubeScale.z, cubeScale.z, u0.x, u3.x), InterfaceUtilily.Remap(point.y, cubeScale.y, -cubeScale.y, u0.y, u1.y));
+                    return new Vector2(Helper.Remap(point.z, -cubeScale.z, cubeScale.z, u0.x, u3.x), Helper.Remap(point.y, cubeScale.y, -cubeScale.y, u0.y, u1.y));
 
             }
 
@@ -134,13 +137,14 @@ namespace UVUnwrapper
         }
 
         public int targetGameObjectID;
+        public UVChannel uvChannel = UVChannel.UVChannle1;
         public int textureSize = 16;
         public int textureWidth = 16;
         public int textureHeight = 16;
         public float gridSize = 16;
         public float sidesScale = 1f;
         public Vector3 boxSize = new Vector3(1, 1, 1);
-        public List<Side> sides;
+        public List<Side> sides = new List<Side>();
         public bool powerOfTwo = true;
         public bool snapToGrid = false;
         public bool showGrid = false;
@@ -175,7 +179,7 @@ namespace UVUnwrapper
 
             var aspect = raw.height / raw.width;
 
-            textureRect = new Rect(container.x, container.y, InterfaceUtilily.Remap(scale, 0f, 1f, 50, container.width), InterfaceUtilily.Remap(scale, 0f, 1f, 50, container.width) * aspect);
+            textureRect = new Rect(container.x, container.y, Helper.Remap(scale, 0f, 1f, 50, container.width), Helper.Remap(scale, 0f, 1f, 50, container.width) * aspect);
 
             if (textureRect.width > container.width)
             {
@@ -241,8 +245,8 @@ namespace UVUnwrapper
                     {
                         case TextureType.Gradient:
                             var diag = x + y;
-                            color = Color.HSVToRGB(InterfaceUtilily.Remap(diag, 0, width + height, minHue, maxHue),
-                                InterfaceUtilily.Remap(diag, 0, width + height, minSat, maxSat), InterfaceUtilily.Remap(diag, 0, width + height, minV, maxV));
+                            color = Color.HSVToRGB(Helper.Remap(diag, 0, width + height, minHue, maxHue),
+                                Helper.Remap(diag, 0, width + height, minSat, maxSat), Helper.Remap(diag, 0, width + height, minV, maxV));
                             break;
                         case TextureType.Clear:
                             color = new Color(0, 0, 0, 0);
@@ -429,10 +433,10 @@ namespace UVUnwrapper
             {
 
                 rect = new Rect(
-                    InterfaceUtilily.Remap(uvOrigin.x, 0f, 1f, container.x, container.x + container.width),
-                    InterfaceUtilily.Remap(uvOrigin.y, 1f, 0f, container.y, container.y + container.height),
-                    InterfaceUtilily.Remap(scaledSize.x, 0f, 1f, 0, container.width),
-                    InterfaceUtilily.Remap(scaledSize.y, 0f, 1f, 0, container.width)
+                    Helper.Remap(uvOrigin.x, 0f, 1f, container.x, container.x + container.width),
+                    Helper.Remap(uvOrigin.y, 1f, 0f, container.y, container.y + container.height),
+                    Helper.Remap(scaledSize.x, 0f, 1f, 0, container.width),
+                    Helper.Remap(scaledSize.y, 0f, 1f, 0, container.width)
                 );
                 if (Instance.snapToGrid && Instance.poinsPerPixel > 3)
                 {
@@ -444,8 +448,8 @@ namespace UVUnwrapper
             public void MapRectToGrid(Grid grid, int x, int y)
             {
                 rect = new Rect(
-                    InterfaceUtilily.Remap(uvOrigin.x, 0f, 1f, 0f, grid.ColumnCount),
-                    InterfaceUtilily.Remap(uvOrigin.y, 0f, 1f, 0f, grid.RowCount),
+                    Helper.Remap(uvOrigin.x, 0f, 1f, 0f, grid.ColumnCount),
+                    Helper.Remap(uvOrigin.y, 0f, 1f, 0f, grid.RowCount),
                     x * grid.ColumnCount,
                     y * grid.RowCount);
             }
@@ -453,8 +457,8 @@ namespace UVUnwrapper
             public void MapPositionFromRect(Rect container)
             {
                 uvOrigin = new Vector3(
-                    InterfaceUtilily.Remap(rect.x, container.x, container.x + container.width, 0f, 1f),
-                    InterfaceUtilily.Remap(rect.y, container.y, container.y + container.height, 1f, 0f)
+                    Helper.Remap(rect.x, container.x, container.x + container.width, 0f, 1f),
+                    Helper.Remap(rect.y, container.y, container.y + container.height, 1f, 0f)
                 );
                 _uvs = uvs;
 
@@ -488,7 +492,7 @@ namespace UVUnwrapper
             for (int i = 0; i < sides.Count; i++)
             {
                 var side = sides[i];
-                side.size = new Vector3(InterfaceUtilily.Remap(side.size.x, 0, ms, 0, 1), InterfaceUtilily.Remap(side.size.y, 0, ms, 0, 1));
+                side.size = new Vector3(Helper.Remap(side.size.x, 0, ms, 0, 1), Helper.Remap(side.size.y, 0, ms, 0, 1));
                 switch (i)
                 {
                     case 0:

@@ -1,11 +1,21 @@
 ﻿using UnityEngine;
 using System.Collections.Generic;
 using UnityEditor;
+using HandyUtilities;
 
 namespace UVUnwrapper
 {
+    [InitializeOnLoad]
     public class UVUnwrapEditor : EditorWindow
     {
+        [InitializeOnLoadMethod]
+        static void Init()
+        {
+            if(UVUnwrapData.Instance == null)
+            {
+                UVUnwrapData.SetIntance(UVUnwrapData.Instance);
+            }
+        }
         UVUnwrapData.Side draggedSide;
 
         Vector2 pressedMousePos, pressedSidePos;
@@ -23,14 +33,14 @@ namespace UVUnwrapper
                 if (value)
                     UVUnwrapData.Instance.targetGameObjectID = value.GetInstanceID();
             }
-        }
+        } 
 
         public Texture2D lockIcon
         {
             get
             {
                 if (_lockIcon == null)
-                    _lockIcon = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/UVUnwrapper/lock_icon.png");
+                    _lockIcon = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Unity-UV-Unwrapper/lock_icon.png");
                 return _lockIcon;
             }
         }
@@ -69,7 +79,7 @@ namespace UVUnwrapper
             var w = GetWindow<UVUnwrapEditor>("UV Unwrap", true);
             w.minSize = new Vector2(800, 500);
             w.Show();
-            EditorInterface.CenterOnMainWin(w);
+            HandyEditor.CenterOnMainWin(w);
             Undo.undoRedoPerformed += w.OnUndo;
             UVUnwrapData.Instance.ScaleSides();
         }
@@ -137,6 +147,7 @@ namespace UVUnwrapper
             data.snapToGrid = EditorGUI.Toggle(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Snap To Grid", data.snapToGrid);
 
             data.autoUpdateTargetUV = EditorGUI.Toggle(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Auto Update UVs", data.autoUpdateTargetUV);
+            data.uvChannel = (UVUnwrapData.UVChannel) EditorGUI.EnumPopup(new Rect(dockPosX, y += elementHeight, dockWidth, 16), new GUIContent("UV Channel"), data.uvChannel);
             var tt = data.targetTexture;
             bool recalculateGrid = false;
             data.targetTexture = EditorGUI.ObjectField(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Target Texture", data.targetTexture, typeof(Texture2D), true) as Texture2D;
@@ -167,7 +178,7 @@ namespace UVUnwrapper
             {
                 if (GUI.Button(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Generate Sides"))
                 {
-                    data.GenerateSides(target.transform.localScale, container);
+                    data.GenerateSides(target.GetComponent<MeshFilter>().sharedMesh.bounds.size, container);
 
                     data.ScaleSides();
                 }
@@ -192,7 +203,7 @@ namespace UVUnwrapper
                     {
 
                         data.prefabPath = path;
-                        CreatePrefab(InterfaceUtilily.ConvertLoRelativePath( new System.IO.FileInfo(path).Directory.FullName), System.IO.Path.GetFileNameWithoutExtension(path), data.createFolder, data.targetTexture);
+                        CreatePrefab(Helper.ConvertLoRelativePath( new System.IO.FileInfo(path).Directory.FullName), System.IO.Path.GetFileNameWithoutExtension(path), data.createFolder, data.targetTexture);
                     }
                 }
                 data.createFolder = EditorGUI.Toggle(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Create Folder", data.createFolder);
@@ -361,7 +372,9 @@ namespace UVUnwrapper
             if(target)
             {
                 var mesh = target.sharedMesh;
-                mesh.uv = UVUnwrapData.Instance.GenerateUV();
+                if(UVUnwrapData.Instance.uvChannel == UVUnwrapData.UVChannel.UVChannle1)
+                    mesh.uv = UVUnwrapData.Instance.GenerateUV();
+                else mesh.uv2 = UVUnwrapData.Instance.GenerateUV();
                 EditorUtility.SetDirty(mesh);
             }
 
@@ -387,6 +400,7 @@ namespace UVUnwrapper
             var texPath = assetFolder + "/" + name + "_decal.png";
 
             prefab.GetComponent<MeshRenderer>().sharedMaterial = mat;
+            HandyEditor.MakeTextureReadable(texture);
             System.IO.File.WriteAllBytes(Application.dataPath + texPath.Remove(0, 6), texture.EncodeToPNG());
             AssetDatabase.ImportAsset(texPath);
             mat.SetTexture("_Decal", AssetDatabase.LoadAssetAtPath<Texture2D>(texPath));
@@ -449,7 +463,7 @@ namespace UVUnwrapper
                 if (settings.targetTexture != null)
                 {
                     _tmpTexture = new Texture2D((int) (settings.targetTexture.width * draggedSide.scaledSize.x), (int) (settings.targetTexture.height * draggedSide.scaledSize.y), TextureFormat.ARGB32, false);
-                    DrawSidePreview();
+                  //  DrawSidePreview();
                 }
             }
 
