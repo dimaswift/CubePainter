@@ -6,12 +6,13 @@ namespace UVUnwrapper
     public class UVUnwrapData : EditorSettings<UVUnwrapData>
     {
         public static readonly int[] FRONT = new int[] { 0, 2, 3, 1 };
-        public static readonly int[] RIGHT = new int[] { 20,21, 22, 23 };
+        public static readonly int[] RIGHT = new int[] { 20, 21, 22, 23 };
         public static readonly int[] BACK = new int[] { 7, 11, 10, 6 };
-        public static readonly int[] LEFT = new int[] { 16,17, 18, 19 };
+        public static readonly int[] LEFT = new int[] { 16, 17, 18, 19 };
         public static readonly int[] TOP = new int[] { 8, 4, 5, 9 };
         public static readonly int[] BOTTOM = new int[] { 12, 13, 14, 15 };
         public static readonly int[][] ALL_SIDES = new int[][] { FRONT, TOP, BACK, RIGHT, BOTTOM, LEFT };
+        static int[] _sideCache = new int[4];
 
         public enum CubeSide
         {
@@ -20,7 +21,7 @@ namespace UVUnwrapper
 
         public static int[] GetSideIndices(CubeSide side)
         {
-            return ALL_SIDES[(int)side];
+            return ALL_SIDES[(int) side];
         }
 
         public static int[] RotateSide(int[] side, Vector2 orientation)
@@ -29,7 +30,7 @@ namespace UVUnwrapper
             return side;
         }
 
-        public static Vector3 GetSideDirection(CubeSide side)
+        public static Vector3 GetFaceDirection(CubeSide side)
         {
             switch (side)
             {
@@ -49,6 +50,11 @@ namespace UVUnwrapper
             return Vector3.zero;
         }
 
+        public static Vector3 GetFaceDirection(Vector3 point, Vector3 cubeScale, float penetration = 0.0001f)
+        {
+            return GetFaceDirection(GetSide(point, cubeScale, penetration));
+        }
+
         public static Vector2 GetUVSideDirection(int[] indices, Vector2[] uv, Vector3[] vertices)
         {
             return (uv[indices[0]] - uv[indices[3]]).normalized;
@@ -59,45 +65,37 @@ namespace UVUnwrapper
             return (vertices[indices[0]] - vertices[indices[1]]).normalized;
         }
 
-        static int[] _sideCache = new int[4];
-        public static Vector2 GetUVPoint(Vector3 boxScale, Vector3 point, Vector2[] uvs, Vector3[] vertices, float penetration = 0.0001f)
+        public static Vector2 GetUVPoint(Vector3 cubeScale, Vector3 point, Vector2[] uvs, out Vector3 faceDir, float penetration = 0.0001f)
         {
-            var side = GetSide(point, boxScale, penetration);
+            var uv = GetUVPoint(cubeScale, point, uvs, penetration);
+            faceDir = GetFaceDirection(GetSide(point, cubeScale, penetration));
+            return uv;
+        }
+
+        public static Vector2 GetUVPoint(Vector3 cubeScale, Vector3 point, Vector2[] uvs, float penetration = 0.0001f)
+        {
+            var side = GetSide(point, cubeScale, penetration);
 
             var canvas = RotateSideIndices(side, Vector2.left, _sideCache);
-            var faceDir = GetFaceDirection(canvas, uvs, vertices);
-            var uvDir = GetUVSideDirection(canvas, uvs, vertices);
-
-      
 
             var u0 = uvs[canvas[0]];
             var u1 = uvs[canvas[1]];
-            var u2 = uvs[canvas[2]];
             var u3 = uvs[canvas[3]];
-
-            var v0 = uvs[canvas[0]];
-            var v1 = uvs[canvas[1]];
-            var v2 = uvs[canvas[2]];
-            var v3 = uvs[canvas[3]];
-
-
-            var normal = Vector3.Dot(faceDir, uvDir);
-            Vector3 axis = GetSideDirection(side);
 
             switch (side)
             {
                 case CubeSide.FRONT:
-                    return new Vector2(InterfaceUtilily.Remap(point.x, -boxScale.x, boxScale.x, u0.x, u3.x), InterfaceUtilily.Remap(point.y, boxScale.y, -boxScale.y, u0.y, u1.y));
+                    return new Vector2(InterfaceUtilily.Remap(point.x, -cubeScale.x, cubeScale.x, u0.x, u3.x), InterfaceUtilily.Remap(point.y, cubeScale.y, -cubeScale.y, u0.y, u1.y));
                 case CubeSide.TOP:
-                    return new Vector2(InterfaceUtilily.Remap(point.x, -boxScale.x, boxScale.x, u0.x, u3.x), InterfaceUtilily.Remap(point.z, -boxScale.z, boxScale.z, u0.y, u1.y));
+                    return new Vector2(InterfaceUtilily.Remap(point.x, -cubeScale.x, cubeScale.x, u0.x, u3.x), InterfaceUtilily.Remap(point.z, -cubeScale.z, cubeScale.z, u0.y, u1.y));
                 case CubeSide.BACK:
-                    return new Vector2(InterfaceUtilily.Remap(point.x, boxScale.x, -boxScale.x, u0.x, u3.x), InterfaceUtilily.Remap(point.y, boxScale.y, -boxScale.y, u0.y, u1.y));
+                    return new Vector2(InterfaceUtilily.Remap(point.x, cubeScale.x, -cubeScale.x, u0.x, u3.x), InterfaceUtilily.Remap(point.y, cubeScale.y, -cubeScale.y, u0.y, u1.y));
                 case CubeSide.RIGHT:
-                    return new Vector2(InterfaceUtilily.Remap(point.z, boxScale.z, -boxScale.z, u0.x, u3.x), InterfaceUtilily.Remap(point.y, boxScale.y, -boxScale.y, u0.y, u1.y));
+                    return new Vector2(InterfaceUtilily.Remap(point.z, cubeScale.z, -cubeScale.z, u0.x, u3.x), InterfaceUtilily.Remap(point.y, cubeScale.y, -cubeScale.y, u0.y, u1.y));
                 case CubeSide.BOTTOM:
-                    return new Vector2(InterfaceUtilily.Remap(point.x, -boxScale.x, boxScale.x, u0.x, u3.x), InterfaceUtilily.Remap(point.z, boxScale.z, -boxScale.z, u0.y, u1.y));
+                    return new Vector2(InterfaceUtilily.Remap(point.x, -cubeScale.x, cubeScale.x, u0.x, u3.x), InterfaceUtilily.Remap(point.z, cubeScale.z, -cubeScale.z, u0.y, u1.y));
                 case CubeSide.LEFT:
-                    return new Vector2(InterfaceUtilily.Remap(point.z, -boxScale.z, boxScale.z, u0.x, u3.x), InterfaceUtilily.Remap(point.y, boxScale.y, -boxScale.y, u0.y, u1.y));
+                    return new Vector2(InterfaceUtilily.Remap(point.z, -cubeScale.z, cubeScale.z, u0.x, u3.x), InterfaceUtilily.Remap(point.y, cubeScale.y, -cubeScale.y, u0.y, u1.y));
 
             }
 
@@ -131,9 +129,9 @@ namespace UVUnwrapper
             {
                 return CubeSide.LEFT;
             }
-          //  Debug.LogWarningFormat("{0} vector is out of bounds or too deep inside of box.", point);
+            //  Debug.LogWarningFormat("{0} vector is out of bounds or too deep inside of box.", point);
             return CubeSide.FRONT;
-         }
+        }
 
         public int targetGameObjectID;
         public int textureSize = 16;
@@ -141,7 +139,7 @@ namespace UVUnwrapper
         public int textureHeight = 16;
         public float gridSize = 16;
         public float sidesScale = 1f;
-        public Vector3 boxSize = new Vector3(1,1,1);
+        public Vector3 boxSize = new Vector3(1, 1, 1);
         public List<Side> sides;
         public bool powerOfTwo = true;
         public bool snapToGrid = false;
@@ -175,8 +173,6 @@ namespace UVUnwrapper
         {
             var raw = GetRawTextureRect();
 
-            bool portrait = raw.height > raw.width;
-
             var aspect = raw.height / raw.width;
 
             textureRect = new Rect(container.x, container.y, InterfaceUtilily.Remap(scale, 0f, 1f, 50, container.width), InterfaceUtilily.Remap(scale, 0f, 1f, 50, container.width) * aspect);
@@ -206,7 +202,7 @@ namespace UVUnwrapper
         }
         public Point TextureSize
         {
-            get { return targetTexture != null ? new Point(targetTexture.width, targetTexture.height) : new Point(textureWidth, textureHeight);  }
+            get { return targetTexture != null ? new Point(targetTexture.width, targetTexture.height) : new Point(textureWidth, textureHeight); }
         }
 
         void RecalculateGrid()
@@ -231,7 +227,7 @@ namespace UVUnwrapper
             var t = new Texture2D(width, height, TextureFormat.ARGB32, true);
             bool check = false;
             float minHue, maxHue, minSat, maxSat, minV, maxV;
-   
+
             Color.RGBToHSV(c1, out minHue, out minSat, out minV);
             Color.RGBToHSV(c2, out maxHue, out maxSat, out maxV);
             for (int x = 0; x < width; x++)
@@ -261,7 +257,7 @@ namespace UVUnwrapper
                             color = c1;
                             break;
                     }
-                   
+
                     t.SetPixel(x, y, color);
                 }
             }
@@ -385,7 +381,7 @@ namespace UVUnwrapper
             {
                 if (_orientation == Vector2.up)
                     _orientation = Vector2.right;
-                else if(_orientation == Vector2.right)
+                else if (_orientation == Vector2.right)
                     _orientation = Vector2.down;
                 else if (_orientation == Vector2.down)
                     _orientation = Vector2.left;
@@ -440,7 +436,7 @@ namespace UVUnwrapper
                 );
                 if (Instance.snapToGrid && Instance.poinsPerPixel > 3)
                 {
-                    rect.width = Instance.poinsPerPixel * Mathf.RoundToInt(rect.width /  Instance.poinsPerPixel);
+                    rect.width = Instance.poinsPerPixel * Mathf.RoundToInt(rect.width / Instance.poinsPerPixel);
                     rect.height = Instance.poinsPerPixel * Mathf.RoundToInt(rect.height / Instance.poinsPerPixel);
                 }
             }
@@ -466,7 +462,7 @@ namespace UVUnwrapper
 
             public Side() { }
 
-            public static Side operator * (Side side, float s)
+            public static Side operator *(Side side, float s)
             {
                 side.size *= s;
                 return side;
@@ -477,7 +473,7 @@ namespace UVUnwrapper
         {
             var sides = new List<Side>();
 
-            sides.Add(new Side(scale.x, scale.y, CubeSide.FRONT,Color.HSVToRGB(.1f, .7f, .7f)) * size);
+            sides.Add(new Side(scale.x, scale.y, CubeSide.FRONT, Color.HSVToRGB(.1f, .7f, .7f)) * size);
             sides.Add(new Side(scale.x, scale.z, CubeSide.TOP, Color.HSVToRGB(.2f, .7f, .7f)) * size);
             sides.Add(new Side(scale.x, scale.y, CubeSide.BACK, Color.HSVToRGB(.3f, .7f, .7f)) * size);
             sides.Add(new Side(scale.z, scale.y, CubeSide.RIGHT, Color.HSVToRGB(.4f, .7f, .7f)) * size);
