@@ -4,7 +4,7 @@ using HandyUtilities;
 
 namespace CubePainter.UVUnwrapper
 {
-    public class UVUnwrapData : EditorSettings<UVUnwrapData>
+    public class UVUnwrapData : SerializedSingleton<UVUnwrapData>
     {
         public static readonly int[] FRONT = new int[] { 0, 2, 3, 1 };
         public static readonly int[] RIGHT = new int[] { 20, 21, 22, 23 };
@@ -101,8 +101,6 @@ namespace CubePainter.UVUnwrapper
                     return new Vector2(Helper.Remap(point.z, -cubeScale.z, cubeScale.z, u0.x, u3.x), Helper.Remap(point.y, cubeScale.y, -cubeScale.y, u0.y, u1.y));
 
             }
-
-            Debug.LogWarning(string.Format("{0}", "Cube side is out of range, enter values between 0 and 5."));
             return Vector2.zero;
         }
 

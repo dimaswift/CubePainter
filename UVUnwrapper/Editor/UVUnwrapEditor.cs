@@ -8,14 +8,7 @@ namespace CubePainter.UVUnwrapper
     [InitializeOnLoad]
     public class UVUnwrapEditor : EditorWindow
     {
-        [InitializeOnLoadMethod]
-        static void Init()
-        {
-            if(UVUnwrapData.Instance == null)
-            {
-                UVUnwrapData.SetIntance(UVUnwrapData.Instance);
-            }
-        }
+
         UVUnwrapData.Side draggedSide;
 
         Vector2 pressedMousePos, pressedSidePos;
@@ -138,11 +131,10 @@ namespace CubePainter.UVUnwrapper
             data.showGrid = EditorGUI.Toggle(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Show Grid", data.showGrid);
 
      
-            if (data.targetTexture == null)
-            {
-                data.textureWidth = EditorGUI.IntSlider(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Texture Width", data.textureWidth, 8, 128);
-                data.textureHeight = EditorGUI.IntSlider(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Texture Height", data.textureHeight, 8, 128);
-            }
+            
+            data.textureWidth = EditorGUI.IntSlider(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Texture Width", data.textureWidth, 8, 128);
+            data.textureHeight = EditorGUI.IntSlider(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Texture Height", data.textureHeight, 8, 128);
+            
 
             data.snapToGrid = EditorGUI.Toggle(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Snap To Grid", data.snapToGrid);
 
@@ -162,14 +154,23 @@ namespace CubePainter.UVUnwrapper
       
             if (GUI.Button(new Rect(dockPosX, y, dockWidth / 2, 16), "Generate  Texture"))
             {
-                var texName = string.Format("{0}_{1}x{2}", target != null ? target.name + "_texture" : "texture", data.TextureSize.x, data.TextureSize.y);
+                var texName = string.Format("{0}_{1}x{2}", target != null ? target.name + "_texture" : "texture", data.textureWidth, data.textureHeight);
                 var path = EditorUtility.SaveFilePanelInProject("Save texture", texName, "png", data.texturePath, data.texturePath);
                 if (!string.IsNullOrEmpty(path))
                 {
                     data.texturePath = path;
-                    var t = UVUnwrapData.GenerateTexture(data.TextureSize.x, data.TextureSize.y, data.generateTextureType, data.color1, data.color2);
+                    var t = UVUnwrapData.GenerateTexture(data.textureWidth, data.textureHeight, data.generateTextureType, data.color1, data.color2);
+               
                     System.IO.File.WriteAllBytes(path, t.EncodeToPNG());
                     AssetDatabase.ImportAsset(path);
+                    var imp = (TextureImporter) AssetImporter.GetAtPath(path);
+                    imp.isReadable = true;
+                    imp.filterMode = FilterMode.Point;
+                    imp.textureType = TextureImporterType.Advanced;
+                    imp.textureFormat = TextureImporterFormat.ARGB32;
+                    imp.mipmapEnabled = false;
+                    imp.SaveAndReimport();
+                    data.targetTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
                 }
             }
             data.color1 = EditorGUI.ColorField(new Rect(dockPosX, y += elementHeight, (dockWidth / 2) - 5, 16), data.color1);

@@ -10,7 +10,6 @@ namespace CubePainter
         public string decalPropName = "_Decal";
         public int poolSize = 3;
         public int hash;
-        Color32[] defaultColor;
         DecalTexture[] _pool;
         Texture2D _source;
 
@@ -22,7 +21,13 @@ namespace CubePainter
             {
                 _pool[i] = new DecalTexture(_source, material, decalPropName);
             }
-            defaultColor = _source.GetPixels32();
+        }
+
+        public DecalPool(Material mat, int poolSize, string propName = "_Decal")
+        {
+            this.poolSize = poolSize;
+            material = mat;
+            Init();
         }
 
         public void Clear()
@@ -32,7 +37,7 @@ namespace CubePainter
                 var p = _pool[i];
                 if (p.isDirty)
                 {
-                    p.texture.SetPixels32(defaultColor);
+                    p.texture.SetPixels32(DecalManager.GetBlankColors(p.texture));
                     p.texture.Apply();
                 }
             }
@@ -49,6 +54,7 @@ namespace CubePainter
                     return t;
                 }
             }
+            Debug.LogWarning(string.Format(">>>>>>>(Allocation warning!) Pool {0} has ran out of clean textures. Creating new texture runtime...", _source.name)); 
             return new DecalTexture(_source, material, decalPropName);
         }
 

@@ -14,7 +14,6 @@
 			Material
 			{
 				Diffuse[_Color]
-				Ambient[_Color]
 				Emission[_Emission]
 			}
 		}
