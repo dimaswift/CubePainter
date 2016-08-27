@@ -169,7 +169,7 @@ namespace CubePainter.UVUnwrapper
         public Rect GetRawTextureRect()
         {
             return targetTexture == null ?
-                new Rect(0, 0, grid.ColumnCount, grid.RowCount) :
+                new Rect(0, 0, grid.columnCount, grid.rowCount) :
                 new Rect(0, 0, targetTexture.width, targetTexture.height);
         }
 
@@ -212,13 +212,9 @@ namespace CubePainter.UVUnwrapper
             get { return targetTexture != null ? new Point(targetTexture.width, targetTexture.height) : new Point(textureWidth, textureHeight); }
         }
 
-        void RecalculateGrid()
+        public void RecalculateGrid()
         {
-            _grid = new Grid(TextureSize.x, TextureSize.y, poinsPerPixel, textureRect.position);
-            if (scaleSidesWithGrid)
-            {
-                BindSidesToContainer();
-            }
+            _grid.Recalculate(TextureSize.x, TextureSize.y, poinsPerPixel, textureRect.position);
         }
 
         public void BindSidesToContainer()
@@ -358,9 +354,10 @@ namespace CubePainter.UVUnwrapper
                 pixelatedScale.x = (int) (scale.x * pixelScale);
                 pixelatedScale.z = (int) (scale.z * pixelScale);
                 pixelatedScale.y = (int) (scale.y * pixelScale);
-                pixelatedScale.x = Mathf.Clamp(pixelatedScale.x, 1, 512);
-                pixelatedScale.z = Mathf.Clamp(pixelatedScale.z, 1, 512);
-                pixelatedScale.y = Mathf.Clamp(pixelatedScale.y, 1, 512);
+                var maxSize = Instance.targetTexture.width;
+                pixelatedScale.x = Mathf.Clamp(pixelatedScale.x, 1, maxSize);
+                pixelatedScale.z = Mathf.Clamp(pixelatedScale.z, 1, maxSize);
+                pixelatedScale.y = Mathf.Clamp(pixelatedScale.y, 1, maxSize);
                 for (int i = 0; i < vertices.Length; i++)
                 {
                     vertices[i] = Vector3.Scale(m_standardCubeVetices[i], pixelatedScale * pixelScale);
@@ -522,10 +519,10 @@ namespace CubePainter.UVUnwrapper
             public void MapRectToGrid(Grid grid, int x, int y)
             {
                 rect = new Rect(
-                    Helper.Remap(uvOrigin.x, 0f, 1f, 0f, grid.ColumnCount),
-                    Helper.Remap(uvOrigin.y, 0f, 1f, 0f, grid.RowCount),
-                    x * grid.ColumnCount,
-                    y * grid.RowCount);
+                    Helper.Remap(uvOrigin.x, 0f, 1f, 0f, grid.columnCount),
+                    Helper.Remap(uvOrigin.y, 0f, 1f, 0f, grid.rowCount),
+                    x * grid.columnCount,
+                    y * grid.rowCount);
             }
 
             public void MapPositionFromRect(Rect container)

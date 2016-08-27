@@ -271,7 +271,7 @@ namespace CubePainter
                 if (ray.transform == transform)
                 {
                  
-                    PlacePixel(ray.point, GetNextGradient());
+                    PlaceSmudge(ray.point, GetNextGradient());
                 }
          
              

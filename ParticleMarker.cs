@@ -8,7 +8,7 @@ namespace CubePainter
         public ParticleSystem part;
         List<ParticleCollisionEvent> m_collisionEvents = new List<ParticleCollisionEvent>();
         public bool emit;
-
+        public bool useSafeCollision = true;
         Material mat;
         void Start()
         {
@@ -34,17 +34,16 @@ namespace CubePainter
         }
         void OnParticleCollision(GameObject other)
         {
-            var count = part.GetCollisionEvents(other, m_collisionEvents);
-        //    var safe = part.GetSafeCollisionEventSize();
+            var collCount = part.GetCollisionEvents(other, m_collisionEvents);
+            var safe = part.GetSafeCollisionEventSize();
             Decal decal = other.GetComponent<Decal>();
+            var count = useSafeCollision ? safe : collCount;
             if (decal == null) return;
          
             for (int i = 0; i < count; i++)
             {
-              //  if(i < safe)
-                    Mark(decal, m_collisionEvents[i].intersection);
+                Mark(decal, m_collisionEvents[i].intersection);
             }
-
         }
     }
 

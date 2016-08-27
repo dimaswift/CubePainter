@@ -86,18 +86,19 @@ namespace CubePainter.UVUnwrapper
 
         void OnDisable()
         {
-            Debug.Log(string.Format("{0}", "closed")); 
+            if (UVUnwrapData.Instance.changeScale)
+            {
+                UVUnwrapData.Instance.changeScale = false;
+                HandyEditor.RestoreTool();
+            }
+              
+            EditorUtility.SetDirty(UVUnwrapData.Instance);  
             Undo.undoRedoPerformed -= OnUndo;
             SceneView.onSceneGUIDelegate -= OnScene;
-        }
-
-        void OnDestroy()
-        {
             DestroyImmediate(_tmpTexture);
             DestroyImmediate(dummyTexture);
             DestroyImmediate(blackTexture);
         }
-
 
         void OnUndo()
         {
@@ -117,9 +118,10 @@ namespace CubePainter.UVUnwrapper
                 Undo.RecordObject(target.sharedMesh, "Scale");
                 var s = data.scale;
                 data.scale = Handles.ScaleHandle(data.scale, target.transform.position, target.transform.rotation, HandleUtility.GetHandleSize(target.transform.position));
-                data.scale.x = Mathf.Clamp(data.scale.x, 1, 512);
-                data.scale.z = Mathf.Clamp(data.scale.z, 1, 512);
-                data.scale.y = Mathf.Clamp(data.scale.y, 1, 512);
+                float maxScale = data.targetTexture.width / data.pixelScale;
+                data.scale.x = Mathf.Clamp(data.scale.x, 1, maxScale);
+                data.scale.z = Mathf.Clamp(data.scale.z, 1, maxScale);
+                data.scale.y = Mathf.Clamp(data.scale.y, 1, maxScale);
                 if (s != data.scale)
                 {
                     data.ApplyPixelScale();
@@ -164,8 +166,8 @@ namespace CubePainter.UVUnwrapper
             var tt = data.targetTexture;
 
             data.targetTexture = EditorGUI.ObjectField(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Target Texture", data.targetTexture, typeof(Texture2D), true) as Texture2D;
-         //   if (tt != data.targetTexture)
-         //       data.rec
+            if (tt != data.targetTexture)
+                data.RecalculateGrid();
 
             data.generateTextureType = (UVUnwrapData.TextureType) EditorGUI.Popup(new Rect(dockPosX + 5 + dockWidth / 2, y += elementHeight, (dockWidth / 2) - 5, 16), (int) data.generateTextureType, System.Enum.GetNames(typeof(UVUnwrapData.TextureType)));
       
@@ -341,11 +343,11 @@ namespace CubePainter.UVUnwrapper
             }
             if (data.poinsPerPixel > 3 && data.showGrid)
             {
-                for (int i = 0; i < data.grid.RowCount; i++)
+                for (int i = 0; i < data.grid.rowCount; i++)
                 {
                     GUI.DrawTexture(new Rect(container.x, data.grid.GetRow(i), container.width, 1), blackTexture, ScaleMode.StretchToFill);
                 }
-                for (int i = 0; i < data.grid.ColumnCount; i++)
+                for (int i = 0; i < data.grid.columnCount; i++)
                 {
                     GUI.DrawTexture(new Rect(data.grid.GetColumn(i), container.y, 1, container.height), blackTexture, ScaleMode.StretchToFill);
                 }
@@ -377,6 +379,8 @@ namespace CubePainter.UVUnwrapper
             if (data.winSize != winSize)
             {
                 data.winSize = winSize;
+                data.RecalculateGrid();
+                data.BindSidesToContainer();
                 if (data.autoUpdateTargetUV)
                     UpdateTargetUV();
             }
