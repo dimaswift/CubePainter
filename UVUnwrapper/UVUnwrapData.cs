@@ -140,8 +140,6 @@ namespace CubePainter.UVUnwrapper
         public int textureWidth = 16;
         public int textureHeight = 16;
         public float gridSize = 16;
-        public float sidesScale = 1f;
-        public Vector3 boxSize = new Vector3(1, 1, 1);
         public List<Side> sides = new List<Side>();
         public bool powerOfTwo = true;
         public bool snapToGrid = false;
@@ -332,22 +330,11 @@ namespace CubePainter.UVUnwrapper
             return _uv;
         }
 
-        public void ScaleSides()
-        {
-            foreach (var s in sides)
-            {
-                s.scaledSize = s.size * sidesScale;
-                s.MapRectToContainer(textureRect);
-                s.relativeSize = new Vector3(s.rect.width / textureRect.width, s.rect.height / textureRect.height);
-            }
-
-            RecalculateGrid();
-        }
-
         public Vector2 GetGridPoint(Vector2 point)
         {
             return grid.GetPoint(point);
         }
+
         static Mesh CreateCubeMesh()
         {
             var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -396,13 +383,6 @@ namespace CubePainter.UVUnwrapper
             }
         }
         
-        public List<Side> GenerateSides(Vector3 size, Rect container)
-        {
-            boxSize = size;
-            sides = GetSides(size, container, sidesScale);
-            return sides;
-        }
-
         public struct Point
         {
             public int x;
@@ -421,8 +401,6 @@ namespace CubePainter.UVUnwrapper
             public Color color;
             public Vector3 uvOrigin;
             public Vector3 size;
-            public Vector3 scaledSize;
-            public Vector3 relativeSize;
             public bool locked = false;
             public Rect rect;
             public bool showInfo;
@@ -460,34 +438,32 @@ namespace CubePainter.UVUnwrapper
                 switch (type)
                 {
                     case CubeSide.FRONT:
-                        relativeSize.x = (pixelScale.x / txtSize.x);
-                        relativeSize.y = (pixelScale.y / txtSize.y);
+                        size.x = (pixelScale.x / txtSize.x);
+                        size.y = (pixelScale.y / txtSize.y);
                         break;
                     case CubeSide.TOP:
-                        relativeSize.x = (pixelScale.x / txtSize.x);
-                        relativeSize.y = (pixelScale.z / txtSize.y);
+                        size.x = (pixelScale.x / txtSize.x);
+                        size.y = (pixelScale.z / txtSize.y);
                         break;
                     case CubeSide.BACK:
-                        relativeSize.x = (pixelScale.x / txtSize.x);
-                        relativeSize.y = (pixelScale.y / txtSize.y);
+                        size.x = (pixelScale.x / txtSize.x);
+                        size.y = (pixelScale.y / txtSize.y);
                         break;
                     case CubeSide.RIGHT:
-                        relativeSize.x = (pixelScale.z / txtSize.x);
-                        relativeSize.y = (pixelScale.y / txtSize.y);
+                        size.x = (pixelScale.z / txtSize.x);
+                        size.y = (pixelScale.y / txtSize.y);
                         break;
                     case CubeSide.BOTTOM:
-                        relativeSize.x = (pixelScale.x / txtSize.x);
-                        relativeSize.y = (pixelScale.z / txtSize.y);
+                        size.x = (pixelScale.x / txtSize.x);
+                        size.y = (pixelScale.z / txtSize.y);
                         break;
                     case CubeSide.LEFT:
-                        relativeSize.x = (pixelScale.z / txtSize.x);
-                        relativeSize.y = (pixelScale.y / txtSize.y);
+                        size.x = (pixelScale.z / txtSize.x);
+                        size.y = (pixelScale.y / txtSize.y);
                         break;
                     default:
                         break;
                 }
-                size = relativeSize;
-                scaledSize = relativeSize;
 
                 MapRectToContainer(container);
                 MapPositionFromRect(container);
@@ -499,9 +475,9 @@ namespace CubePainter.UVUnwrapper
                 get
                 {
                     _uvs[3] = new Vector2(uvOrigin.x, uvOrigin.y);
-                    _uvs[2] = new Vector2(uvOrigin.x, uvOrigin.y - relativeSize.y);
-                    _uvs[1] = new Vector2(uvOrigin.x + relativeSize.x, uvOrigin.y - relativeSize.y);
-                    _uvs[0] = new Vector2(uvOrigin.x + relativeSize.x, uvOrigin.y);
+                    _uvs[2] = new Vector2(uvOrigin.x, uvOrigin.y - size.y);
+                    _uvs[1] = new Vector2(uvOrigin.x + size.x, uvOrigin.y - size.y);
+                    _uvs[0] = new Vector2(uvOrigin.x + size.x, uvOrigin.y);
                     return _uvs;
                 }
             }
@@ -519,7 +495,6 @@ namespace CubePainter.UVUnwrapper
                 uvOrigin = new Vector3();
                 color.a = .35f;
                 this.color = color;
-                scaledSize = size;
                 this.name = type.ToString();
                 this.type = type;
             }
@@ -530,8 +505,8 @@ namespace CubePainter.UVUnwrapper
                 rect = new Rect(
                     Helper.Remap(uvOrigin.x, 0f, 1f, container.x, container.x + container.width),
                     Helper.Remap(uvOrigin.y, 1f, 0f, container.y, container.y + container.height),
-                    Helper.Remap(scaledSize.x, 0f, 1f, 0, container.width),
-                    Helper.Remap(scaledSize.y, 0f, 1f, 0, container.width)
+                    Helper.Remap(size.x, 0f, 1f, 0, container.width),
+                    Helper.Remap(size.y, 0f, 1f, 0, container.width)
                 );
             
                 if (Instance.snapToGrid && Instance.poinsPerPixel > 3)

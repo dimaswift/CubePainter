@@ -73,9 +73,6 @@ namespace CubePainter.UVUnwrapper
             w.minSize = new Vector2(800, 500);
             w.Show();
             HandyEditor.CenterOnMainWin(w);
-        
-            UVUnwrapData.Instance.ScaleSides();
-
         }
 
         void OnEnable()
@@ -85,6 +82,13 @@ namespace CubePainter.UVUnwrapper
             SceneView.onSceneGUIDelegate -= OnScene;
             SceneView.onSceneGUIDelegate += OnScene;
 
+        }
+
+        void OnDisable()
+        {
+            Debug.Log(string.Format("{0}", "closed")); 
+            Undo.undoRedoPerformed -= OnUndo;
+            SceneView.onSceneGUIDelegate -= OnScene;
         }
 
         void OnDestroy()
@@ -98,7 +102,6 @@ namespace CubePainter.UVUnwrapper
         void OnUndo()
         {
             var data = UVUnwrapData.Instance;
-            data.ScaleSides();
             if (data.autoUpdateTargetUV)
                 UpdateTargetUV();
         }
@@ -141,7 +144,6 @@ namespace CubePainter.UVUnwrapper
             data.containerRect = container;
             if (data.maximized != maximized)
             {
-                data.ScaleSides();
                 data.maximized = maximized;
             }
              
@@ -150,38 +152,21 @@ namespace CubePainter.UVUnwrapper
 
             target = (EditorGUI.ObjectField(new Rect(dockPosX, y += elementHeight, dockWidth, 16), target, typeof(MeshFilter), true) as MeshFilter);
 
-            var _sidesScale = data.sidesScale;
-            data.sidesScale = EditorGUI.Slider(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Sides Scale", data.sidesScale, 0.1f, 5f);
-
-            if (data.sidesScale != _sidesScale)
-            {
-                data.ScaleSides();
-                if (data.autoUpdateTargetUV)
-                    UpdateTargetUV();
-            }
-
             data.showGrid = EditorGUI.Toggle(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Show Grid", data.showGrid);
 
-     
-            
             data.textureWidth = EditorGUI.IntSlider(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Texture Width", data.textureWidth, 8, 128);
             data.textureHeight = EditorGUI.IntSlider(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Texture Height", data.textureHeight, 8, 128);
-            
 
             data.snapToGrid = EditorGUI.Toggle(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Snap To Grid", data.snapToGrid);
 
             data.autoUpdateTargetUV = EditorGUI.Toggle(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Auto Update UVs", data.autoUpdateTargetUV);
             data.uvChannel = (UVUnwrapData.UVChannel) EditorGUI.EnumPopup(new Rect(dockPosX, y += elementHeight, dockWidth, 16), new GUIContent("UV Channel"), data.uvChannel);
             var tt = data.targetTexture;
-            bool recalculateGrid = false;
-            data.targetTexture = EditorGUI.ObjectField(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Target Texture", data.targetTexture, typeof(Texture2D), true) as Texture2D;
-            if (tt != data.targetTexture)
-                recalculateGrid = true;
 
-            if (GUI.Button(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Recalculate Grid"))
-            {
-                data.ScaleSides();
-            }
+            data.targetTexture = EditorGUI.ObjectField(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Target Texture", data.targetTexture, typeof(Texture2D), true) as Texture2D;
+         //   if (tt != data.targetTexture)
+         //       data.rec
+
             data.generateTextureType = (UVUnwrapData.TextureType) EditorGUI.Popup(new Rect(dockPosX + 5 + dockWidth / 2, y += elementHeight, (dockWidth / 2) - 5, 16), (int) data.generateTextureType, System.Enum.GetNames(typeof(UVUnwrapData.TextureType)));
       
             if (GUI.Button(new Rect(dockPosX, y, dockWidth / 2, 16), "Generate  Texture"))
@@ -209,13 +194,6 @@ namespace CubePainter.UVUnwrapper
             data.color2 = EditorGUI.ColorField(new Rect(dockPosX + 5 + dockWidth / 2, y, (dockWidth / 2) - 5, 16), data.color2);
             if (target != null)
             {
-                if (GUI.Button(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Generate Sides"))
-                {
-                    data.GenerateSides(target.sharedMesh.bounds.size, container);
-
-                    data.ScaleSides();
-                }
-               
                 if (GUI.Button(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Generate Mesh"))
                 {
                     var path = EditorUtility.SaveFilePanelInProject("Save mesh", target.name + "_mesh", "asset", data.meshPath, data.meshPath);
@@ -248,7 +226,14 @@ namespace CubePainter.UVUnwrapper
             {
                 HandyEditor.RestoreTool();
             }
-            data.pixelScale = EditorGUI.Slider(new Rect(dockPosX, y += elementHeight, dockWidth, 16), data.pixelScale, 0.0001f, 1f);
+            var s = data.pixelScale;
+            data.pixelScale = EditorGUI.Slider(new Rect(dockPosX, y += elementHeight, dockWidth, 16), data.pixelScale, 0.00001f, 0.1f);
+            if(s != data.pixelScale)
+            {
+                Undo.RecordObject(target.sharedMesh, "Scale");
+                data.ApplyPixelScale();
+                EditorUtility.SetDirty(target);  
+            }
             y += elementHeight;
             for (int i = 0; i < data.sides.Count; i++)
             {
@@ -268,13 +253,11 @@ namespace CubePainter.UVUnwrapper
                 if (GUI.Button(new Rect(dockPosX + 80, y, 70, 16), "Rotate UV"))
                 {
                     side.RotateUV();
-                    data.ScaleSides();
                     UpdateTargetUV();
                 }
                 if (GUI.Button(new Rect(dockPosX + 155, y, 80, 16), "Rotate Rect"))
                 {
                     side.RotateRect();
-                    data.ScaleSides();
                     UpdateTargetUV();
                 }
                 if (GUI.Button(new Rect(dockPosX + 240, y, 50, 16), "Reflect"))
@@ -390,14 +373,9 @@ namespace CubePainter.UVUnwrapper
                     GUI.DrawTexture(new Rect(side.rect.center.x - lockWidth / 2, side.rect.center.y - lockWidth / 2, lockWidth, lockWidth), lockIcon);
                 }
             }
-            if(recalculateGrid)
-            {
-               
-                data.ScaleSides();
-            }
+
             if (data.winSize != winSize)
             {
-                data.ScaleSides();
                 data.winSize = winSize;
                 if (data.autoUpdateTargetUV)
                     UpdateTargetUV();
@@ -515,7 +493,7 @@ namespace CubePainter.UVUnwrapper
                 DestroyImmediate(_tmpTexture);
                 if (settings.targetTexture != null)
                 {
-                    _tmpTexture = new Texture2D((int) (settings.targetTexture.width * draggedSide.scaledSize.x), (int) (settings.targetTexture.height * draggedSide.scaledSize.y), TextureFormat.ARGB32, false);
+                    _tmpTexture = new Texture2D((int) (settings.targetTexture.width * draggedSide.size.x), (int) (settings.targetTexture.height * draggedSide.size.y), TextureFormat.ARGB32, false);
                   //  DrawSidePreview();
                 }
             }
