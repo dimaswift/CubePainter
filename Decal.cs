@@ -265,7 +265,7 @@ namespace CubePainter
             {
                 Clear();
             }
-            if (Input.GetMouseButton(1))
+            if (Input.GetMouseButton(0))
             {
                 var ray = Helper.RaycastMouse();
                 if (ray.transform == transform)

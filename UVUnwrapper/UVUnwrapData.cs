@@ -152,6 +152,10 @@ namespace CubePainter.UVUnwrapper
         public float zoom = 1f;
         public Vector2 winSize;
         public bool maximized = false;
+        public bool changeScale;
+        public float pixelScale = 1f;
+        public Vector3 scale = Vector3.one;
+        public Vector3 pixelatedScale = Vector3.zero;
         public enum TextureType { Gradient, Clear, Checker, Margin, Color }
         public TextureType generateTextureType;
         [SerializeField]
@@ -170,6 +174,8 @@ namespace CubePainter.UVUnwrapper
                 new Rect(0, 0, grid.ColumnCount, grid.RowCount) :
                 new Rect(0, 0, targetTexture.width, targetTexture.height);
         }
+
+        public Rect containerRect;
 
         public Rect GetScaledTextureRect(float scale, Rect container)
         {
@@ -197,7 +203,8 @@ namespace CubePainter.UVUnwrapper
         [SerializeField]
         Vector2[] _uv = new Vector2[24];
 
-
+        Vector3[] m_standardCubeVetices = new Vector3[0]; 
+ 
         public Grid grid
         {
             get { if (_grid == null) _grid = new Grid(TextureSize.x, TextureSize.y, poinsPerPixel, textureRect.position); return _grid; }
@@ -341,7 +348,54 @@ namespace CubePainter.UVUnwrapper
         {
             return grid.GetPoint(point);
         }
-
+        static Mesh CreateCubeMesh()
+        {
+            var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var mesh = cube.GetComponent<MeshFilter>().sharedMesh;
+            DestroyImmediate(cube);
+            return Instantiate(mesh);
+        }
+        public void ApplyPixelScale()
+        {
+            MeshFilter target = UnityEditor.EditorUtility.InstanceIDToObject(targetGameObjectID) as MeshFilter;
+            if(target)
+            {
+                if(m_standardCubeVetices.Length == 0)
+                {
+                    var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    m_standardCubeVetices = cube.GetComponent<MeshFilter>().sharedMesh.vertices;
+                    DestroyImmediate(cube);
+                }
+                var mesh = target.sharedMesh;
+                var vertices = mesh.vertices;
+                pixelatedScale.x = (int) (scale.x * pixelScale);
+                pixelatedScale.z = (int) (scale.z * pixelScale);
+                pixelatedScale.y = (int) (scale.y * pixelScale);
+                pixelatedScale.x = Mathf.Clamp(pixelatedScale.x, 1, 512);
+                pixelatedScale.z = Mathf.Clamp(pixelatedScale.z, 1, 512);
+                pixelatedScale.y = Mathf.Clamp(pixelatedScale.y, 1, 512);
+                for (int i = 0; i < vertices.Length; i++)
+                {
+                    vertices[i] = Vector3.Scale(m_standardCubeVetices[i], pixelatedScale * pixelScale);
+                }
+                mesh.vertices = vertices;
+                mesh.RecalculateBounds();
+                foreach (var s in sides)
+                {
+                    s.Snap(containerRect, this);
+                }
+                if (uvChannel == UVChannel.UVChannle1)
+                    mesh.uv = GenerateUV();
+                else mesh.uv2 = GenerateUV();
+                var box = target.GetComponent<BoxCollider>();
+                if(box != null)
+                {
+                    box.size = mesh.bounds.size;
+                    box.center = mesh.bounds.center;
+                }
+            }
+        }
+        
         public List<Side> GenerateSides(Vector3 size, Rect container)
         {
             boxSize = size;
@@ -397,6 +451,49 @@ namespace CubePainter.UVUnwrapper
                 size.x = y;
                 size.y = x;
             }
+
+            public void Snap(Rect container, UVUnwrapData data)
+            {
+                var txtSize = new Vector2(data.targetTexture.width, data.targetTexture.height);
+                var pixelScale = data.pixelatedScale;
+                
+                switch (type)
+                {
+                    case CubeSide.FRONT:
+                        relativeSize.x = (pixelScale.x / txtSize.x);
+                        relativeSize.y = (pixelScale.y / txtSize.y);
+                        break;
+                    case CubeSide.TOP:
+                        relativeSize.x = (pixelScale.x / txtSize.x);
+                        relativeSize.y = (pixelScale.z / txtSize.y);
+                        break;
+                    case CubeSide.BACK:
+                        relativeSize.x = (pixelScale.x / txtSize.x);
+                        relativeSize.y = (pixelScale.y / txtSize.y);
+                        break;
+                    case CubeSide.RIGHT:
+                        relativeSize.x = (pixelScale.z / txtSize.x);
+                        relativeSize.y = (pixelScale.y / txtSize.y);
+                        break;
+                    case CubeSide.BOTTOM:
+                        relativeSize.x = (pixelScale.x / txtSize.x);
+                        relativeSize.y = (pixelScale.z / txtSize.y);
+                        break;
+                    case CubeSide.LEFT:
+                        relativeSize.x = (pixelScale.z / txtSize.x);
+                        relativeSize.y = (pixelScale.y / txtSize.y);
+                        break;
+                    default:
+                        break;
+                }
+                size = relativeSize;
+                scaledSize = relativeSize;
+
+                MapRectToContainer(container);
+                MapPositionFromRect(container);
+
+            }
+
             public Vector2[] uvs
             {
                 get
@@ -436,11 +533,15 @@ namespace CubePainter.UVUnwrapper
                     Helper.Remap(scaledSize.x, 0f, 1f, 0, container.width),
                     Helper.Remap(scaledSize.y, 0f, 1f, 0, container.width)
                 );
+            
                 if (Instance.snapToGrid && Instance.poinsPerPixel > 3)
                 {
                     rect.width = Instance.poinsPerPixel * Mathf.RoundToInt(rect.width / Instance.poinsPerPixel);
                     rect.height = Instance.poinsPerPixel * Mathf.RoundToInt(rect.height / Instance.poinsPerPixel);
                 }
+                rect.x = Mathf.Clamp(rect.x, container.x, container.x + container.width - rect.width);
+                rect.y = Mathf.Clamp(rect.y, container.y, container.y + container.height - rect.height);
+
             }
 
             public void MapRectToGrid(Grid grid, int x, int y)

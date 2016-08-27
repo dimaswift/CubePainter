@@ -73,8 +73,18 @@ namespace CubePainter.UVUnwrapper
             w.minSize = new Vector2(800, 500);
             w.Show();
             HandyEditor.CenterOnMainWin(w);
-            Undo.undoRedoPerformed += w.OnUndo;
+        
             UVUnwrapData.Instance.ScaleSides();
+
+        }
+
+        void OnEnable()
+        {
+            Undo.undoRedoPerformed -= OnUndo;
+            Undo.undoRedoPerformed += OnUndo;
+            SceneView.onSceneGUIDelegate -= OnScene;
+            SceneView.onSceneGUIDelegate += OnScene;
+
         }
 
         void OnDestroy()
@@ -93,7 +103,28 @@ namespace CubePainter.UVUnwrapper
                 UpdateTargetUV();
         }
 
-
+        void OnScene(SceneView view)
+        {
+            var data = UVUnwrapData.Instance;
+            if(data.changeScale && target != null)
+            {
+                HandyEditor.FreezeScene();
+                HandyEditor.HideTools();
+                Undo.RecordObject(data, "Scale");
+                Undo.RecordObject(target.sharedMesh, "Scale");
+                var s = data.scale;
+                data.scale = Handles.ScaleHandle(data.scale, target.transform.position, target.transform.rotation, HandleUtility.GetHandleSize(target.transform.position));
+                data.scale.x = Mathf.Clamp(data.scale.x, 1, 512);
+                data.scale.z = Mathf.Clamp(data.scale.z, 1, 512);
+                data.scale.y = Mathf.Clamp(data.scale.y, 1, 512);
+                if (s != data.scale)
+                {
+                    data.ApplyPixelScale();
+                    EditorUtility.SetDirty(data);
+                    EditorUtility.SetDirty(target.sharedMesh);
+                }
+            }
+        }
 
         void OnGUI()
         {
@@ -107,6 +138,7 @@ namespace CubePainter.UVUnwrapper
             var winSize = new Vector2(position.width, position.height);
 
             var container = data.GetScaledTextureRect(data.zoom, new Rect(10, 10, position.width - dockWidth - 20, position.height - 20));
+            data.containerRect = container;
             if (data.maximized != maximized)
             {
                 data.ScaleSides();
@@ -179,7 +211,7 @@ namespace CubePainter.UVUnwrapper
             {
                 if (GUI.Button(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Generate Sides"))
                 {
-                    data.GenerateSides(target.GetComponent<MeshFilter>().sharedMesh.bounds.size, container);
+                    data.GenerateSides(target.sharedMesh.bounds.size, container);
 
                     data.ScaleSides();
                 }
@@ -210,6 +242,13 @@ namespace CubePainter.UVUnwrapper
                 data.createFolder = EditorGUI.Toggle(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Create Folder", data.createFolder);
 
             }
+            var cs = data.changeScale;
+            data.changeScale = GUI.Toggle(new Rect(dockPosX, y += elementHeight, dockWidth, 16), data.changeScale, "Change Scale", EditorStyles.toolbarButton);
+            if(data.changeScale != cs && data.changeScale == false)
+            {
+                HandyEditor.RestoreTool();
+            }
+            data.pixelScale = EditorGUI.Slider(new Rect(dockPosX, y += elementHeight, dockWidth, 16), data.pixelScale, 0.0001f, 1f);
             y += elementHeight;
             for (int i = 0; i < data.sides.Count; i++)
             {
@@ -363,6 +402,8 @@ namespace CubePainter.UVUnwrapper
                 if (data.autoUpdateTargetUV)
                     UpdateTargetUV();
             }
+
+         
             EditorUtility.SetDirty(data);
             Repaint();
         }
@@ -400,17 +441,28 @@ namespace CubePainter.UVUnwrapper
             var matPath = assetFolder + "/" + name + "_mat.mat";
             var texPath = assetFolder + "/" + name + "_decal.png";
 
-            prefab.GetComponent<MeshRenderer>().sharedMaterial = mat;
+          
+            PrefabUtility.CreatePrefab(prefabPath, prefab.gameObject);
+
             HandyEditor.MakeTextureReadable(texture);
-            System.IO.File.WriteAllBytes(Application.dataPath + texPath.Remove(0, 6), texture.EncodeToPNG());
+         //   System.IO.File.WriteAllBytes(Application.dataPath + texPath.Remove(0, 6), texture.EncodeToPNG());
             AssetDatabase.ImportAsset(texPath);
-            mat.SetTexture("_Decal", AssetDatabase.LoadAssetAtPath<Texture2D>(texPath));
-            AssetDatabase.CreateAsset(mesh, meshPath);
-            AssetDatabase.CreateAsset(mat, matPath);
+            var t = Instantiate(texture);
+            mat.SetTexture("_Decal", t);
+            AssetDatabase.AddObjectToAsset(mesh, prefabPath);
+            AssetDatabase.AddObjectToAsset(mat, prefabPath);
+            AssetDatabase.AddObjectToAsset(t, prefabPath);
+            AssetDatabase.ImportAsset(prefabPath);
             EditorUtility.SetDirty(prefab);  
             EditorUtility.SetDirty(mesh);
-            PrefabUtility.CreatePrefab(prefabPath, prefab.gameObject);
+           
+            
+
             DestroyImmediate(prefab.gameObject);
+
+            prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath).GetComponent<MeshFilter>();
+            prefab.sharedMesh = mesh;
+            prefab.GetComponent<MeshRenderer>().sharedMaterial = mat;
         }
 
         void GenerateMesh(MeshFilter target, string path)
