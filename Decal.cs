@@ -5,7 +5,7 @@ using HandyUtilities;
 namespace CubePainter
 {
     using UVUnwrapper;
-    [RequireComponent(typeof(Collider))]
+
     public class Decal : MonoBehaviour
     {
         // Inspector settings
@@ -17,16 +17,16 @@ namespace CubePainter
         bool m_useDecalPool;
         [SerializeField]
         int m_decalIndex = 0;
-        [SerializeField]
-        string m_decalPropName = "_Decal";
 
-        // Private fields
+        public const string DECAL_PROP_NAME = "_Decal";
+
+        [SerializeField]
+        Material m_decalMaterial;
         Texture2D m_decalTex;
         MeshRenderer m_meshRenderer;
         Bounds m_bounds;
         Transform m_cachedTransform;
         Vector2[] m_uvs;
-        Collider m_collider;
         float m_hue;
         Color m_baseColor;
         Color32[] m_blankColor;
@@ -34,13 +34,14 @@ namespace CubePainter
         int m_decalHeight, m_decalWidth;
 
         // Static values
-        const float MAX_PENETRATION_VALUE = .001f;
+        const float MAX_PENETRATION_VALUE = .1f; 
         static float commonHue;
         public static Color currentGradient = Color.red;
 
         // Public properties
         public Texture2D decalTexture { get { return m_decalTex; } }
         public MeshRenderer meshRenderer { get { return m_meshRenderer; } }
+        public Material decalMaterial { get { return m_decalMaterial; } }
 
         struct PixelPoint
         {
@@ -93,7 +94,7 @@ namespace CubePainter
 
         void Start()
         {
-            m_collider = GetComponent<Collider>();
+            m_decalTex = m_decalMaterial.GetTexture(DECAL_PROP_NAME) as Texture2D;
             m_meshRenderer = GetComponentInChildren<MeshRenderer>();
             m_cachedTransform = transform;
             var m = m_meshRenderer.GetComponent<MeshFilter>().sharedMesh;
@@ -103,10 +104,10 @@ namespace CubePainter
             {
                 SetDirty();
             }
-            else DecalManager.RegisterDecal(this);
+            else DecalPool.instance.RegisterDecal(this);
             m_decalHeight = m_decalTex.height;
             m_decalWidth = m_decalTex.width;
-            //  Clear();
+             Clear();
         }
 
         void SetDirty()
@@ -115,18 +116,16 @@ namespace CubePainter
             {
                 if (!m_useDecalPool)
                 {
-                    var decalSource = m_meshRenderer.sharedMaterial.GetTexture(m_decalPropName);
-                    m_decalTex = Instantiate(decalSource) as Texture2D;
-                    if(m_decalTex == null)
-                        m_decalTex = Instantiate(decalSource) as Texture2D;
+                    m_decalTex = Instantiate(m_decalTex) as Texture2D;
                     m_meshRenderer.material.SetTexture("_Decal", m_decalTex);
                     m_blankColor = new Color32[m_decalTex.width * m_decalTex.height];
                     m_isDirty = true;
                     return;
                 }
-                var p = DecalManager.GetPool(m_meshRenderer.sharedMaterial).Pick();
-                m_decalTex = p.texture;
-                m_meshRenderer.sharedMaterial = p.material;
+                bool isDirty = false;
+                var p = DecalPool.instance.PickMaterial(this, out isDirty);
+                m_decalTex = p.GetTexture(DECAL_PROP_NAME) as Texture2D;
+                m_meshRenderer.sharedMaterial = p;
                 m_isDirty = true;
             }
         }
@@ -149,7 +148,6 @@ namespace CubePainter
         public void PlacePixel(Vector3 point, Color color, float lerp = 1f)
         {
             SetDirty();
-            point = m_collider.ClosestPointOnBounds(point);
             Vector2 uv = m_isPlane ? GetPlaneUV(point) : GetUV(point);
             var pp = new PixelPoint(uv.x * m_decalWidth, uv.y * m_decalHeight);
             var oldPixel = m_decalTex.GetPixel(pp.x, pp.y);
@@ -172,6 +170,7 @@ namespace CubePainter
         public void PlaceSmudge(Vector3 point, Color color, float lerp = 1f)
         {
             SetDirty();
+
             Vector2 uv = m_isPlane ? GetPlaneUV(point) : GetUV(point);
             var pp = new PixelPoint(uv.x * m_decalWidth, uv.y * m_decalHeight);
             var oldPixel = m_decalTex.GetPixel(pp.x, pp.y);
@@ -221,7 +220,7 @@ namespace CubePainter
 
         void Clear()
         {
-            m_decalTex.SetPixels32(m_useDecalPool ? DecalManager.GetBlankColors(m_decalTex) : m_blankColor);
+            m_decalTex.SetPixels32(m_useDecalPool ? DecalPool.instance.GetBlankColors(m_decalTex) : m_blankColor);
             m_decalTex.Apply();
         }
 
@@ -265,17 +264,17 @@ namespace CubePainter
             {
                 Clear();
             }
-            if (Input.GetMouseButton(0))
-            {
-                var ray = Helper.RaycastMouse();
-                if (ray.transform == transform)
-                {
-                 
-                    PlaceSmudge(ray.point, GetNextGradient());
-                }
-         
-             
-            }
+            //if (Input.GetMouseButton(0))
+            //{
+            //    var ray = Helper.RaycastMouse();
+            //    if (ray.transform == transform)
+            //    {
+
+            //        PlaceSmudge(ray.point, GetNextGradient());
+            //    }
+
+
+            //}
         }
     }
 

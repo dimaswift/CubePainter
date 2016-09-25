@@ -70,7 +70,7 @@ namespace CubePainter.UVUnwrapper
         static void Open()
         {
             var w = GetWindow<UVUnwrapEditor>("UV Unwrap", true);
-            w.minSize = new Vector2(800, 500);
+            w.minSize = new Vector2(360, 500);
             w.Show();
             HandyEditor.CenterOnMainWin(w);
         }
@@ -118,7 +118,7 @@ namespace CubePainter.UVUnwrapper
                 Undo.RecordObject(target.sharedMesh, "Scale");
                 var s = data.scale;
                 data.scale = Handles.ScaleHandle(data.scale, target.transform.position, target.transform.rotation, HandleUtility.GetHandleSize(target.transform.position));
-                float maxScale = data.targetTexture.width / data.pixelScale;
+                float maxScale = data.targetTexture != null ? data.targetTexture.width / data.pixelScale : 512;
                 data.scale.x = Mathf.Clamp(data.scale.x, 1, maxScale);
                 data.scale.z = Mathf.Clamp(data.scale.z, 1, maxScale);
                 data.scale.y = Mathf.Clamp(data.scale.y, 1, maxScale);
@@ -156,8 +156,8 @@ namespace CubePainter.UVUnwrapper
 
             data.showGrid = EditorGUI.Toggle(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Show Grid", data.showGrid);
 
-            data.textureWidth = EditorGUI.IntSlider(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Texture Width", data.textureWidth, 8, 128);
-            data.textureHeight = EditorGUI.IntSlider(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Texture Height", data.textureHeight, 8, 128);
+            data.textureWidth = EditorGUI.IntField(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Texture Width", data.textureWidth);
+            data.textureHeight = EditorGUI.IntField(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Texture Height", data.textureHeight);
 
             data.snapToGrid = EditorGUI.Toggle(new Rect(dockPosX, y += elementHeight, dockWidth, 16), "Snap To Grid", data.snapToGrid);
 
@@ -284,97 +284,100 @@ namespace CubePainter.UVUnwrapper
             GUI.color = gc;
 
             var e = Event.current;
-
-            if (data.targetTexture != null)
+            if(position.width > 500)
             {
-                GUI.DrawTexture(container, data.targetTexture);
-            }
-
-            if (draggedSide != null)
-            {
-                y += elementHeight;
-                //  GUI.DrawTexture(new Rect(width - _tmpTexture.width, y, _tmpTexture.width, _tmpTexture.height), _tmpTexture, ScaleMode.ScaleToFit);
-            }
-
-            if (e.button == 0)
-            {
-                if (e.type == EventType.MouseDown && container.Contains(e.mousePosition))
+                if (data.targetTexture != null)
                 {
-                    pressedMousePos = e.mousePosition;
-                    bool touchedSide = false;
-                    foreach (var side in data.sides)
+                    GUI.DrawTexture(container, data.targetTexture);
+                }
+
+                if (draggedSide != null)
+                {
+                    y += elementHeight;
+                    //  GUI.DrawTexture(new Rect(width - _tmpTexture.width, y, _tmpTexture.width, _tmpTexture.height), _tmpTexture, ScaleMode.ScaleToFit);
+                }
+
+                if (e.button == 0)
+                {
+                    if (e.type == EventType.MouseDown && container.Contains(e.mousePosition))
                     {
-                        if (!side.locked && side.Contains(pressedMousePos))
+                        pressedMousePos = e.mousePosition;
+                        bool touchedSide = false;
+                        foreach (var side in data.sides)
                         {
-                            touchedSide = true;
-                            SwitchSide(side);
-                            pressedSidePos = side.rect.position;
-                            break;
+                            if (!side.locked && side.Contains(pressedMousePos))
+                            {
+                                touchedSide = true;
+                                SwitchSide(side);
+                                pressedSidePos = side.rect.position;
+                                break;
+                            }
                         }
+                        if (!touchedSide)
+                            draggedSide = null;
                     }
-                    if (!touchedSide)
-                        draggedSide = null;
-                }
-                if (e.type == EventType.MouseDrag && draggedSide != null && container.Contains(e.mousePosition))
-                {
-                    var r = draggedSide.rect;
-                    var pos = pressedSidePos + (e.mousePosition - pressedMousePos);
-                    pos.x = Mathf.Clamp(pos.x, container.x, container.x + container.width - r.width);
-                    pos.y = Mathf.Clamp(pos.y, container.y, container.y + container.height - r.height);
-                    if(data.snapToGrid && data.poinsPerPixel > 3)
+                    if (e.type == EventType.MouseDrag && draggedSide != null && container.Contains(e.mousePosition))
                     {
-                        pos.x = data.grid.GetClosetColumn(pos.x);
-                        pos.y = data.grid.GetClosetRow(pos.y);
+                        var r = draggedSide.rect;
+                        var pos = pressedSidePos + (e.mousePosition - pressedMousePos);
+                        pos.x = Mathf.Clamp(pos.x, container.x, container.x + container.width - r.width);
+                        pos.y = Mathf.Clamp(pos.y, container.y, container.y + container.height - r.height);
+                        if (data.snapToGrid && data.poinsPerPixel > 3)
+                        {
+                            pos.x = data.grid.GetClosetColumn(pos.x);
+                            pos.y = data.grid.GetClosetRow(pos.y);
+                        }
+                        r.position = pos;
+                        draggedSide.rect = r;
+
+                        draggedSide.MapPositionFromRect(container);
+                        if (data.autoUpdateTargetUV)
+                            UpdateTargetUV();
+                        //DrawSidePreview();
                     }
-                    r.position = pos;
-                    draggedSide.rect = r;
-                      
-                    draggedSide.MapPositionFromRect(container);
-                    if (data.autoUpdateTargetUV)
-                        UpdateTargetUV();
-                    //DrawSidePreview();
                 }
-            }
-            if (draggedSide != null)
-            {
-                GUI.color = new Color(0, 0, 0, 1);
-                DrawRectagle(draggedSide.rect, 2);
-                GUI.color = gc;
-            }
-            if (data.poinsPerPixel > 3 && data.showGrid)
-            {
-                for (int i = 0; i < data.grid.rowCount; i++)
+                if (draggedSide != null)
                 {
-                    GUI.DrawTexture(new Rect(container.x, data.grid.GetRow(i), container.width, 1), blackTexture, ScaleMode.StretchToFill);
+                    GUI.color = new Color(0, 0, 0, 1);
+                    DrawRectagle(draggedSide.rect, 2);
+                    GUI.color = gc;
                 }
-                for (int i = 0; i < data.grid.columnCount; i++)
+                if (data.poinsPerPixel > 3 && data.showGrid)
                 {
-                    GUI.DrawTexture(new Rect(data.grid.GetColumn(i), container.y, 1, container.height), blackTexture, ScaleMode.StretchToFill);
+                    for (int i = 0; i < data.grid.rowCount; i++)
+                    {
+                        GUI.DrawTexture(new Rect(container.x, data.grid.GetRow(i), container.width, 1), blackTexture, ScaleMode.StretchToFill);
+                    }
+                    for (int i = 0; i < data.grid.columnCount; i++)
+                    {
+                        GUI.DrawTexture(new Rect(data.grid.GetColumn(i), container.y, 1, container.height), blackTexture, ScaleMode.StretchToFill);
+                    }
+
+                    GUI.DrawTexture(new Rect(container.x, container.y + container.height, container.width, 1), blackTexture, ScaleMode.StretchToFill);
+                    GUI.DrawTexture(new Rect(container.x + container.width, container.y, 1, container.height), blackTexture, ScaleMode.StretchToFill);
+
                 }
-
-                GUI.DrawTexture(new Rect(container.x, container.y + container.height, container.width, 1), blackTexture, ScaleMode.StretchToFill);
-                GUI.DrawTexture(new Rect(container.x + container.width, container.y, 1, container.height), blackTexture, ScaleMode.StretchToFill);
-
-            }
-            else
-            {
-                DrawRectagle(container);
-            }
-
-            for (int i = 0; i < data.sides.Count; i++)
-            {
-                var side = data.sides[i];
-
-                GUI.color = side.color;
-                GUI.Box(side.rect, dummyTexture);
-                GUI.color = gc;
-                GUI.Label(new Rect((side.rect.x + (side.rect.width / 2)) - 50, (side.rect.y + (side.rect.height / 2)) - 50, 100, 100), side.name, new GUIStyle() { alignment = TextAnchor.MiddleCenter });
-                if (side.locked)
+                else
                 {
-                    var lockWidth = side.rect.width > side.rect.height ? side.rect.width / 3 : side.rect.height / 3;
-                    GUI.DrawTexture(new Rect(side.rect.center.x - lockWidth / 2, side.rect.center.y - lockWidth / 2, lockWidth, lockWidth), lockIcon);
+                    DrawRectagle(container);
+                }
+
+                for (int i = 0; i < data.sides.Count; i++)
+                {
+                    var side = data.sides[i];
+
+                    GUI.color = side.color;
+                    GUI.Box(side.rect, dummyTexture);
+                    GUI.color = gc;
+                    GUI.Label(new Rect((side.rect.x + (side.rect.width / 2)) - 50, (side.rect.y + (side.rect.height / 2)) - 50, 100, 100), side.name, new GUIStyle() { alignment = TextAnchor.MiddleCenter });
+                    if (side.locked)
+                    {
+                        var lockWidth = side.rect.width > side.rect.height ? side.rect.width / 3 : side.rect.height / 3;
+                        GUI.DrawTexture(new Rect(side.rect.center.x - lockWidth / 2, side.rect.center.y - lockWidth / 2, lockWidth, lockWidth), lockIcon);
+                    }
                 }
             }
+          
 
             if (data.winSize != winSize)
             {
@@ -408,9 +411,11 @@ namespace CubePainter.UVUnwrapper
         {
             var data = UVUnwrapData.Instance;
             var prefab = Instantiate(target);
+            prefab.name = target.name;
             var mesh = Instantiate(target.sharedMesh);
+            mesh.name = prefab.name + "_mesh";
             var mat = Instantiate(target.GetComponent<MeshRenderer>().sharedMaterial);
-
+            mat.name = prefab.name + "_mat";
             mesh.uv = data.GenerateUV();
             prefab.sharedMesh = mesh;
             if (createFolder)
@@ -419,7 +424,7 @@ namespace CubePainter.UVUnwrapper
                 assetFolder += "/" + name.ToUpperInvariant(); 
             }
             var meshPath = assetFolder + "/" + name + "_mesh.asset";
-            var prefabPath = assetFolder + "/" + name + "_prefab.prefab";
+            var prefabPath = assetFolder + "/" + name + ".prefab";
             var matPath = assetFolder + "/" + name + "_mat.mat";
             var texPath = assetFolder + "/" + name + "_decal.png";
 
@@ -430,6 +435,7 @@ namespace CubePainter.UVUnwrapper
          //   System.IO.File.WriteAllBytes(Application.dataPath + texPath.Remove(0, 6), texture.EncodeToPNG());
             AssetDatabase.ImportAsset(texPath);
             var t = Instantiate(texture);
+            t.name = prefab.name + "_decal";
             mat.SetTexture("_Decal", t);
             AssetDatabase.AddObjectToAsset(mesh, prefabPath);
             AssetDatabase.AddObjectToAsset(mat, prefabPath);
@@ -445,6 +451,9 @@ namespace CubePainter.UVUnwrapper
             prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath).GetComponent<MeshFilter>();
             prefab.sharedMesh = mesh;
             prefab.GetComponent<MeshRenderer>().sharedMaterial = mat;
+     
+            target = PrefabUtility.ConnectGameObjectToPrefab(target.gameObject, prefab.gameObject).GetComponent<MeshFilter>();
+            Selection.activeGameObject = target.gameObject;
         }
 
         void GenerateMesh(MeshFilter target, string path)

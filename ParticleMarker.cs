@@ -36,7 +36,7 @@ namespace CubePainter
         {
             var collCount = part.GetCollisionEvents(other, m_collisionEvents);
             var safe = part.GetSafeCollisionEventSize();
-            Decal decal = other.GetComponent<Decal>();
+            Decal decal = other.GetComponentInChildren<Decal>();
             var count = useSafeCollision ? safe : collCount;
             if (decal == null) return;
          

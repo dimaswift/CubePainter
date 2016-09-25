@@ -1,85 +1,137 @@
 ﻿using UnityEngine;
-using System.Collections;
+using System.Collections.Generic;
 
 namespace CubePainter
 {
     [System.Serializable]
-    public class DecalPool
+    public class DecalPool : MonoBehaviour
     {
-        public Material material;
-        public string decalPropName = "_Decal";
-        public int poolSize = 3;
-        public int hash;
-        DecalTexture[] _pool;
-        Texture2D _source;
+        static DecalPool m_instance;
+
+        readonly Dictionary<int, Color32[]> m_blankCache = new Dictionary<int, Color32[]>();
+
+        bool m_loaded;
+
+        public Color32[] GetBlankColors(Texture2D tex)
+        {
+            var pixelCount = tex.width * tex.height;
+            Color32[] result = null;
+            m_blankCache.TryGetValue(pixelCount, out result);
+            return result;
+        }
+
+
+        public static DecalPool instance
+        {
+            get
+            {
+                if (m_instance == null)
+                {
+                    m_instance = FindObjectOfType<DecalPool>();
+                    if (m_instance == null)
+                        m_instance = new GameObject("Decal Pool").AddComponent<DecalPool>();
+                    DontDestroyOnLoad(m_instance.gameObject);
+                    m_instance.Init();
+                }
+                return m_instance;
+            }
+        }
+
+
+        Dictionary<DecalSize, Pool> m_pool;
+
+        public void RegisterDecal(Decal canvas)
+        {
+            var size = new DecalSize(canvas.decalTexture.width, canvas.decalTexture.height);
+            var pixelCount = size.width * size.height;
+            if (!m_blankCache.ContainsKey(pixelCount))
+            {
+                var colorArray = new Color32[pixelCount];
+                m_blankCache.Add(pixelCount, colorArray);
+            }
+            if (m_pool.ContainsKey(size))
+            {
+                var pool = m_pool[size];
+                pool.AddMaterial();
+            }
+            else
+            {
+                var pool = new Pool(canvas.decalMaterial, 10);
+                m_pool.Add(size, pool);
+            }
+        }
+
+        public Material PickMaterial(Decal canvas, out bool isDirty)
+        {
+            var size = new DecalSize(canvas.decalTexture.width, canvas.decalTexture.height);
+            Pool pool;
+            if (m_pool.TryGetValue(size, out pool))
+            {
+                return pool.Pick(out isDirty);
+            }
+            isDirty = false;
+            return null;
+        }
 
         public void Init()
         {
-            _source = material.GetTexture(decalPropName) as Texture2D;
-            _pool = new DecalTexture[poolSize];
-            for (int i = 0; i < _pool.Length; i++)
+            m_pool = new Dictionary<DecalSize, Pool>(100);
+
+        }
+
+        public struct DecalSize
+        {
+            public int width, height;
+            public DecalSize(int width, int height)
             {
-                _pool[i] = new DecalTexture(_source, material, decalPropName);
+                this.width = width;
+                this.height = height;
             }
         }
 
-        public DecalPool(Material mat, int poolSize, string propName = "_Decal")
+        public class Pool
         {
-            this.poolSize = poolSize;
-            material = mat;
-            Init();
-        }
-
-        public void Clear()
-        {
-            for (int i = 0; i < _pool.Length; i++)
+            class PooledMaterial
             {
-                var p = _pool[i];
-                if (p.isDirty)
+                public Material material;
+                public bool isDirty = false;
+            }
+            int order = 0;
+
+            List<PooledMaterial> materials;
+            Material source;
+
+            public Pool(Material mat, int capacity)
+            {
+                source = mat;
+                materials = new List<PooledMaterial>(capacity);
+                AddMaterial();
+            }
+
+            public Material Pick(out bool isDirty)
+            {
+                if (order >= materials.Count)
                 {
-                    p.texture.SetPixels32(DecalManager.GetBlankColors(p.texture));
-                    p.texture.Apply();
+                    order = 0;
                 }
+                var m = materials[order++];
+                isDirty = m.isDirty;
+                m.isDirty = true;
+                return m.material;
+            }
+
+            public void AddMaterial()
+            {
+                var newMat = Instantiate(source);
+                newMat.name = "pooled material";
+                var newDecal = Instantiate(newMat.GetTexture(Decal.DECAL_PROP_NAME)) as Texture2D;
+                newDecal.SetPixels32(DecalPool.instance.GetBlankColors(newDecal));
+                newDecal.Apply();
+                newMat.SetTexture(Decal.DECAL_PROP_NAME, newDecal);
+                materials.Add(new PooledMaterial() { material = newMat });
             }
         }
 
-        public DecalTexture Pick()
-        {
-            for (int i = 0; i < _pool.Length; i++)
-            {
-                var t = _pool[i];
-                if (!t.isDirty)
-                {
-                    t.isDirty = true;
-                    return t;
-                }
-            }
-            Debug.LogWarning(string.Format(">>>>>>>(Allocation warning!) Pool {0} has ran out of clean textures. Creating new texture runtime...", _source.name)); 
-            return new DecalTexture(_source, material, decalPropName);
-        }
-
-        public class DecalTexture
-        {
-            public Texture2D texture;
-            public Material material;
-            public bool isDirty;
-
-            public DecalTexture(int h, int w, Material mat, string propName = "_Decal")
-            {
-                texture = new Texture2D(w, h, TextureFormat.RGB24, true);
-                material = Object.Instantiate(mat);
-                material.SetTexture(propName, texture);
-                isDirty = false;
-            }
-
-            public DecalTexture(Texture2D source, Material mat, string propName = "_Decal")
-            {
-                material = Object.Instantiate(mat);
-                texture = Object.Instantiate(source);
-                material.SetTexture(propName, texture);
-                isDirty = false;
-            }
-        }
     }
 
 }
