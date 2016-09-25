@@ -312,6 +312,10 @@ namespace CubePainter.UVUnwrapper
 
         public Vector2[] GenerateUV()
         {
+            if(sides.Count == 0)
+            {
+                sides = GetSides(Vector3.one, containerRect);
+            }
             for (int i = 0; i < 6; i++)
             {
                 var side = sides[i];

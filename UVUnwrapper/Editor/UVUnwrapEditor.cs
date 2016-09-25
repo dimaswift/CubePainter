@@ -230,7 +230,7 @@ namespace CubePainter.UVUnwrapper
             }
             var s = data.pixelScale;
             data.pixelScale = EditorGUI.Slider(new Rect(dockPosX, y += elementHeight, dockWidth, 16), data.pixelScale, 0.00001f, 0.1f);
-            if(s != data.pixelScale)
+            if(s != data.pixelScale && target != null)
             {
                 Undo.RecordObject(target.sharedMesh, "Scale");
                 data.ApplyPixelScale();
